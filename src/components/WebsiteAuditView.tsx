@@ -13,14 +13,15 @@ import {
   ChevronUp,
   FileCode,
   Copy,
-  Check
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { AuditResult, SeoIssue } from '../types';
 import { Lock } from 'lucide-react';
 
 interface WebsiteAuditViewProps {
   audit: AuditResult;
-  userTier?: 'free' | 'starter' | 'business';
+  userTier?: 'free' | 'pro' | 'agency';
   onOpenFixModal: (issue: SeoIssue) => void;
   onNavigateBilling?: () => void;
 }
@@ -356,7 +357,7 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
                     <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Weekly monitoring
                   </span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> AI recommendations
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Full recommendations
                   </span>
                   <span className="flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Deeper crawling
@@ -370,7 +371,7 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
                   className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-sm whitespace-nowrap transition cursor-pointer text-center shrink-0"
                   id="btn-audit-locked-upgrade"
                 >
-                  Start Monitoring — $9/mo →
+                  Start Monitoring — $19/mo →
                 </button>
               )}
             </div>

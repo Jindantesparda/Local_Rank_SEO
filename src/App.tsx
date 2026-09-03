@@ -750,7 +750,7 @@ export default function App() {
                     {activeView === 'settings' && 'Settings'}
                     {activeView === 'billing' && 'Plans & Billing'}
                   </h2>
-                  <p className="text-[11px] text-slate-400">LocalRank AI workspace</p>
+                  <p className="text-[11px] text-slate-400">Local SEO platform</p>
                 </div>
 
                 <button

@@ -1,5 +1,6 @@
 import { CrawledPage, Business } from '../src/types';
 import { CrawlResult } from './crawler';
+import { isLocalBusinessSchemaType } from './schema';
 
 export interface ScoreBreakdown {
   overallScore: number;
@@ -167,13 +168,11 @@ export function calculateSeoScore(
   const contactInfoScore = hasPhoneOrEmail ? 5 : 2;
 
   // LocalBusiness Schema (5 pts)
-  const hasLocalSchema = pages.some(p =>
-    p.hasStructuredData &&
-    p.structuredDataTypes.some(t =>
-      ['localbusiness', 'organization', 'restaurant', 'dentist', 'medicalclinic', 'store', 'plumber', 'lodgingbusiness'].includes(t.toLowerCase())
-    )
+  const hasLocalSchema = pages.some((p) =>
+    p.hasStructuredData && p.structuredDataTypes.some((t) => isLocalBusinessSchemaType(t))
   );
-  const localSchemaScore = hasLocalSchema ? 5 : 0;
+  const hasGenericSchema = pages.some((p) => p.hasStructuredData);
+  const localSchemaScore = hasLocalSchema ? 5 : hasGenericSchema ? 2 : 0;
 
   // Service/Location relevance (3 pts)
   const serviceKeywords = (business.services || []).map(s => s.toLowerCase());

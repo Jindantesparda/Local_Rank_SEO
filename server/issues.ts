@@ -2,6 +2,7 @@ import { CrawledPage, Business, SeoIssue, IssueCategory, IssueSeverity, Difficul
 import { CrawlResult } from './crawler';
 import { ScoreBreakdown } from './scoring';
 import { guessCountryCode } from './country';
+import { isLocalBusinessSchemaType } from './schema';
 
 export function generateIssues(
   crawlData: CrawlResult,
@@ -360,8 +361,11 @@ export function generateIssues(
   // LOCAL SEO ISSUES
   // ----------------------------------------------------
   // LocalBusiness Schema
-  const hasSchema = pages.some(p => p.hasStructuredData);
-  if (!hasSchema) {
+  const hasLocalSchema = pages.some(
+    (p) => p.hasStructuredData && p.structuredDataTypes.some((t) => isLocalBusinessSchemaType(t))
+  );
+  const hasGenericSchema = pages.some((p) => p.hasStructuredData);
+  if (!hasLocalSchema) {
     const countryCode = guessCountryCode(business.location);
     const address: { '@type': string; addressLocality: string; addressCountry?: string } = {
       '@type': 'PostalAddress',
@@ -385,7 +389,9 @@ export function generateIssues(
       category: 'local',
       severity: 'high',
       title: 'Missing LocalBusiness structured data (Schema.org)',
-      description: 'Your website does not include machine-readable Schema markup for local businesses.',
+      description: hasGenericSchema
+        ? 'Your website includes structured data, but none of it uses a local business schema type (e.g. LocalBusiness, Restaurant, Dentist). Search engines may not connect your content to a physical local business.'
+        : 'Your website does not include machine-readable Schema markup for local businesses.',
       affectedPage: homepage.url,
       whyItMatters: 'Structured data explicitly informs Google of your official business name, coordinates, category, and contact numbers, significantly improving your presence in the Google Local 3-Pack and Knowledge Panel.',
       recommendedAction: 'Paste a valid LocalBusiness JSON-LD script into the <head> of your website.',
@@ -403,8 +409,8 @@ export function generateIssues(
       id: 'issue-schema-good',
       category: 'local',
       severity: 'good',
-      title: 'Structured data (Schema.org) detected',
-      description: 'Your website contains structured JSON-LD data to help Google interpret your business entities.',
+      title: 'LocalBusiness structured data detected',
+      description: 'Your website includes Schema.org local business markup that helps Google interpret your business entity.',
       affectedPage: homepage.url,
       whyItMatters: 'Increases chances of rich search snippets and local entity disambiguation.',
       recommendedAction: 'Verify periodically with Google\'s Rich Results Test tool.',
@@ -436,17 +442,54 @@ export function generateIssues(
   }
 
   // Clickable Phone
-  const hasTelLink = pages.some(p => p.url.includes('contact') || p.internalLinks.some(l => l.includes('contact')));
-  if (hasTelLink) {
+  // Clickable phone links
+  const hasClickToCall = pages.some((p) => p.hasClickToCall);
+  const hasContactPage = pages.some(
+    (p) => p.path.toLowerCase().includes('contact') || p.internalLinks.some((l) => l.toLowerCase().includes('contact'))
+  );
+
+  if (hasContactPage && hasClickToCall) {
     addIssue({
       id: 'issue-contact-good',
       category: 'local',
       severity: 'good',
-      title: 'Dedicated Contact page discovered',
-      description: 'Your website includes an accessible contact page where customers can find you.',
+      title: 'Contact page with click-to-call phone links detected',
+      description: 'Your website includes a contact page and clickable tel: links, making it easy for mobile visitors to call you.',
       affectedPage: '/contact',
-      whyItMatters: 'Builds consumer confidence and assists Google in verifying physical existence.',
-      recommendedAction: 'Ensure your phone number is clickable with <a href="tel:..."> for mobile visitors.',
+      whyItMatters: 'Builds consumer confidence and helps Google verify your physical existence and contact consistency.',
+      recommendedAction: 'Keep your phone number consistent across the site and your Google Business Profile.',
+      difficulty: 'easy',
+      impact: 'medium',
+    });
+  } else if (hasContactPage && !hasClickToCall) {
+    addIssue({
+      id: 'issue-contact-not-clickable',
+      category: 'local',
+      severity: 'medium',
+      title: 'Phone number is not clickable on mobile',
+      description: 'You have a contact page, but we did not detect clickable tel: links. Mobile visitors cannot tap-to-call.',
+      affectedPage: '/contact',
+      whyItMatters: 'Most local searches happen on mobile. If a customer cannot tap to call, they may go back to Google and choose a competitor.',
+      recommendedAction: 'Wrap your phone number in a clickable link: <a href="tel:+1234567890">+123 456 7890</a>.',
+      difficulty: 'easy',
+      impact: 'medium',
+      suggestedFix: {
+        type: 'code',
+        recommended: `<a href="tel:+1234567890">+123 456 7890</a>`,
+        language: 'html',
+        targetElement: 'Phone number on the contact page',
+      }
+    });
+  } else {
+    addIssue({
+      id: 'issue-contact-missing',
+      category: 'local',
+      severity: 'medium',
+      title: 'No dedicated contact page found',
+      description: 'We could not find a page with "contact" in its URL or internal links pointing to a contact page.',
+      affectedPage: 'Site-wide',
+      whyItMatters: 'Google uses contact consistency as a local trust signal, and customers look for an easy way to reach you.',
+      recommendedAction: 'Create a contact page with your business name, address, phone number, and a clickable tel: link.',
       difficulty: 'easy',
       impact: 'medium',
     });

@@ -13,7 +13,7 @@ import { AuditResult } from '../types';
 
 interface ContinuousSeoTrackerProps {
   audit: AuditResult;
-  userTier?: 'free' | 'starter' | 'business';
+  userTier?: 'free' | 'pro' | 'agency';
   onNavigateTab: (tab: 'audit' | 'recommendations' | 'pages' | 'billing') => void;
   onRunAudit: () => void;
 }
@@ -26,7 +26,7 @@ export const ContinuousSeoTracker: React.FC<ContinuousSeoTrackerProps> = ({
 }) => {
   const history = audit.auditHistory || [];
   const latest = history[0];
-  const isPaidPlan = userTier === 'starter' || userTier === 'business';
+  const isPaidPlan = userTier === 'pro' || userTier === 'agency';
   const city = audit.business.location.split(',')[0].trim();
 
   return (

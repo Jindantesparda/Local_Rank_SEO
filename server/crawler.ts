@@ -59,13 +59,16 @@ function isSafeUrl(rawUrl: string): { safe: boolean; reason?: string; parsed?: U
   }
 }
 
-async function fetchWithTimeout(url: string, timeoutMs = 10000, retries = 1): Promise<{ ok: boolean; status: number; text: string; timeMs: number }> {
+async function fetchWithTimeout(url: string, timeoutMs = 10000, retries = 1): Promise<{ ok: boolean; status: number; text: string; timeMs: number; finalUrl: string }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const start = Date.now();
 
   try {
-    const res = await fetch(url, {
+    // Follow redirects manually so we can record the final URL (and detect
+    // http -> https upgrades for the HTTPS site-wide check).
+    let currentUrl = url;
+    let res = await fetch(currentUrl, {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; LocalRank Bot/1.0)',
@@ -73,11 +76,41 @@ async function fetchWithTimeout(url: string, timeoutMs = 10000, retries = 1): Pr
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate',
       },
-      redirect: 'follow',
+      redirect: 'manual',
     });
+
+    let redirects = 0;
+    while (
+      res.status >= 300 &&
+      res.status < 400 &&
+      res.status !== 304 &&
+      redirects < 6
+    ) {
+      const location = res.headers.get('location');
+      if (!location) break;
+      try {
+        await res.body?.cancel();
+      } catch {
+        // ignore cancellation errors on redirect bodies
+      }
+      currentUrl = new URL(location, currentUrl).href;
+      res = await fetch(currentUrl, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; LocalRank Bot/1.0)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate',
+        },
+        redirect: 'manual',
+      });
+      redirects++;
+    }
+
     const text = await res.text();
     const timeMs = Date.now() - start;
-    return { ok: res.ok, status: res.status, text, timeMs };
+    const finalUrl = currentUrl;
+    return { ok: res.ok, status: res.status, text, timeMs, finalUrl };
   } catch (err: unknown) {
     clearTimeout(timeoutId);
     // Retry once on timeout or network error
@@ -102,6 +135,9 @@ export async function crawlWebsite(
 
   const rootOrigin = safety.parsed.origin;
   const isHttps = safety.parsed.protocol === 'https:';
+  // A site may be entered as http:// but redirect to https://. Treat the
+  // observed final protocol as the source of truth for the HTTPS check.
+  let httpsObserved = isHttps;
 
   const queue: string[] = [safety.parsed.href];
   const visited = new Set<string>();
@@ -142,7 +178,10 @@ export async function crawlWebsite(
     visited.add(normalized);
 
     try {
-      const { status, text, timeMs } = await fetchWithTimeout(currentUrl, 10000, 1);
+      const { status, text, timeMs, finalUrl } = await fetchWithTimeout(currentUrl, 10000, 1);
+      if (finalUrl.startsWith('https://')) {
+        httpsObserved = true;
+      }
 
       if (status >= 400) {
         brokenLinks.push(currentUrl);
@@ -164,6 +203,7 @@ export async function crawlWebsite(
           robotsDirectives: '',
           hasStructuredData: false,
           structuredDataTypes: [],
+          hasClickToCall: false,
           loadTimeMs: timeMs,
           issueCount: 1,
         });
@@ -213,9 +253,13 @@ export async function crawlWebsite(
       // Links
       const internalLinks: string[] = [];
       const externalLinks: string[] = [];
+      let hasClickToCall = false;
 
       $('a[href]').each((_, el) => {
         const href = $(el).attr('href')?.trim();
+        if (href?.startsWith('tel:')) {
+          hasClickToCall = true;
+        }
         if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) {
           return;
         }
@@ -291,6 +335,7 @@ export async function crawlWebsite(
         robotsDirectives,
         hasStructuredData,
         structuredDataTypes,
+        hasClickToCall,
         loadTimeMs: timeMs,
       });
     } catch (err: unknown) {
@@ -314,6 +359,7 @@ export async function crawlWebsite(
         robotsDirectives: '',
         hasStructuredData: false,
         structuredDataTypes: [],
+        hasClickToCall: false,
         issueCount: 1,
       });
     }
@@ -322,7 +368,7 @@ export async function crawlWebsite(
   return {
     pages,
     siteWide: {
-      https: isHttps,
+      https: httpsObserved,
       robotsTxt: robotsTxtFound,
       sitemapXml: sitemapXmlFound,
       canonicalConsistency: pages.every(p => !p.canonical || p.canonical.startsWith('http')),

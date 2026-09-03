@@ -14,7 +14,7 @@ import {
   LogOut,
   Settings
 } from 'lucide-react';
-import { AuditResult, User, Business } from '../types';
+import { AuditResult, User, Business, SubscriptionTier } from '../types';
 import { PLAN_CONFIGS } from '../config/plans';
 
 interface NavbarProps {
@@ -66,8 +66,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const planKey = currentUser?.subscription?.plan || currentUser?.subscriptionTier || 'free';
-  const planConfig = PLAN_CONFIGS[planKey];
+  const planKey = (currentUser?.subscription?.plan || currentUser?.subscriptionTier || 'free') as SubscriptionTier;
+  const planConfig = PLAN_CONFIGS[planKey] || PLAN_CONFIGS.free;
 
   return (
     <header className="sticky top-0 z-40 bg-white/75 backdrop-blur-xl border-b border-white/80 shadow-[0_4px_20px_rgba(148,163,204,0.06)]">
@@ -87,6 +87,30 @@ export const Navbar: React.FC<NavbarProps> = ({
               <p className="text-[10px] text-slate-400 leading-none">Local SEO Platform</p>
             </div>
           </button>
+
+          {/* Landing page links */}
+          {!currentAudit && (
+            <nav className="hidden lg:flex items-center gap-1 ml-2">
+              <a
+                href="#product"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/70 transition"
+              >
+                Product
+              </a>
+              <a
+                href="#how-it-works"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/70 transition"
+              >
+                How It Works
+              </a>
+              <a
+                href="#pricing"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/70 transition"
+              >
+                Pricing
+              </a>
+            </nav>
+          )}
 
           {/* Business Switcher (Requirement 6: User -> Business -> Audits) */}
           {currentUser && activeBusiness && (

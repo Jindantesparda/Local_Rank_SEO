@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Loader2, AlertCircle, Zap } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle, Zap, ArrowRight } from 'lucide-react';
 import { Business } from '../types';
 
 interface AuditProgressProps {
@@ -25,7 +25,7 @@ const STEPS: StepItem[] = [
   { id: 'content', label: 'Analyzing page content', detail: 'Scanning titles, meta descriptions, H1s & word count' },
   { id: 'local', label: 'Checking local SEO signals', detail: 'Validating location cues, Schema & contact cues' },
   { id: 'issues', label: 'Finding issues', detail: 'Calculating deterministic 100-pt SEO scores' },
-  { id: 'ai', label: 'Preparing recommendations', detail: 'Prioritizing Top 5 action plan with AI fixes' },
+  { id: 'ai', label: 'Preparing recommendations', detail: 'Prioritizing Top 5 action plan with recommended fixes' },
 ];
 
 export const AuditProgress: React.FC<AuditProgressProps> = ({

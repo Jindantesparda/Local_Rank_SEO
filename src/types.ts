@@ -33,6 +33,7 @@ export interface CrawledPage {
   robotsDirectives: string;
   hasStructuredData: boolean;
   structuredDataTypes: string[];
+  hasClickToCall?: boolean;
   loadTimeMs?: number;
   issueCount?: number;
 }
@@ -136,7 +137,7 @@ export interface AuditResult {
   auditHistory?: AuditHistoryEntry[];
 }
 
-export type SubscriptionTier = 'free' | 'starter' | 'business';
+export type SubscriptionTier = 'free' | 'pro' | 'agency';
 export type SubscriptionStatus = 'active' | 'trialing' | 'canceled' | 'past_due';
 
 export interface UserSubscription {

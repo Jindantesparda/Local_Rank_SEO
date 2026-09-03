@@ -1,6 +1,6 @@
 {
-  "name": "LocalRank AI",
-  "description": "Automated SEO audit and prioritized AI action plan for small businesses.",
+  "name": "LocalRank",
+  "description": "Local SEO platform that analyzes your website and gives you a prioritized action plan to get found when local customers search.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -59,7 +59,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-900/70 border border-indigo-800 text-indigo-300 text-xs font-semibold mb-3">
             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>AI-Powered Action Engine</span>
+            <span>Action Engine</span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-white">
             Prioritized Recommendations & Business Actions
@@ -216,7 +216,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                     id={`btn-draft-page-${issue.id}`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Draft Page with AI</span>
+                    <span>Draft Page</span>
                   </button>
                 </div>
               ) : fix ? (
@@ -236,7 +236,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-                        Recommended LocalRank AI Replacement:
+                        Recommended LocalRank Replacement:
                       </span>
                       {fix.targetElement && (
                         <span className="text-[10px] text-slate-400 font-mono">
