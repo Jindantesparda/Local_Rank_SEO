@@ -177,7 +177,7 @@ ${draft.schemaMarkup}
                 <Sparkles className="w-4 h-4" />
               </span>
               <span className="text-xs font-bold text-sky-700 uppercase tracking-wider">
-                LocalRank Page Drafter
+                LocalRank AI Page Drafter
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">

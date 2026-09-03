@@ -13,8 +13,7 @@ import {
   ChevronUp,
   FileCode,
   Copy,
-  Check,
-  Sparkles
+  Check
 } from 'lucide-react';
 import { AuditResult, SeoIssue } from '../types';
 import { Lock } from 'lucide-react';

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Loader2, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle, Zap } from 'lucide-react';
 import { Business } from '../types';
 
 interface AuditProgressProps {
@@ -66,7 +66,7 @@ export const AuditProgress: React.FC<AuditProgressProps> = ({
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 mb-3">
-            <Sparkles className="w-6 h-6" />
+            <Zap className="w-6 h-6" />
           </div>
 
           <h2 className="text-2xl font-bold text-slate-900">

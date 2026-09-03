@@ -59,7 +59,7 @@ function isSafeUrl(rawUrl: string): { safe: boolean; reason?: string; parsed?: U
   }
 }
 
-async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<{ ok: boolean; status: number; text: string; timeMs: number }> {
+async function fetchWithTimeout(url: string, timeoutMs = 10000, retries = 1): Promise<{ ok: boolean; status: number; text: string; timeMs: number }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const start = Date.now();
@@ -68,15 +68,23 @@ async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<{ ok: bo
     const res = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; LocalRankBot/1.0; +https://localrank.ai/bot)',
+        'User-Agent': 'Mozilla/5.0 (compatible; LocalRank Bot/1.0)',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate',
       },
       redirect: 'follow',
     });
     const text = await res.text();
     const timeMs = Date.now() - start;
     return { ok: res.ok, status: res.status, text, timeMs };
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    // Retry once on timeout or network error
+    if (retries > 0 && (err instanceof Error && err.name === 'AbortError' || err instanceof TypeError)) {
+      return fetchWithTimeout(url, timeoutMs + 2000, retries - 1);
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -104,9 +112,9 @@ export async function crawlWebsite(
   let robotsTxtFound = false;
   let sitemapXmlFound = false;
 
-  // Check robots.txt & sitemap in parallel
+  // Check robots.txt & sitemap with retry
   try {
-    const robotsRes = await fetchWithTimeout(`${rootOrigin}/robots.txt`, 4000);
+    const robotsRes = await fetchWithTimeout(`${rootOrigin}/robots.txt`, 5000, 1);
     if (robotsRes.status === 200 && robotsRes.text.length > 5) {
       robotsTxtFound = true;
     }
@@ -115,7 +123,7 @@ export async function crawlWebsite(
   }
 
   try {
-    const sitemapRes = await fetchWithTimeout(`${rootOrigin}/sitemap.xml`, 4000);
+    const sitemapRes = await fetchWithTimeout(`${rootOrigin}/sitemap.xml`, 5000, 1);
     if (
       sitemapRes.status === 200 &&
       (sitemapRes.text.includes('<urlset') || sitemapRes.text.includes('<sitemapindex'))
@@ -134,7 +142,7 @@ export async function crawlWebsite(
     visited.add(normalized);
 
     try {
-      const { status, text, timeMs } = await fetchWithTimeout(currentUrl, 8000);
+      const { status, text, timeMs } = await fetchWithTimeout(currentUrl, 10000, 1);
 
       if (status >= 400) {
         brokenLinks.push(currentUrl);

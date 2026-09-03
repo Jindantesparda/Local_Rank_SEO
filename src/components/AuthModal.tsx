@@ -144,7 +144,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-sm text-slate-900 tracking-tight">
-                {mode === 'welcome' && 'Welcome to LocalRank'}
+                {mode === 'welcome' && 'Welcome to LocalRank AI'}
                 {mode === 'signup' && 'Create LocalRank Account'}
                 {mode === 'login' && 'Sign in to LocalRank'}
               </h3>
@@ -174,7 +174,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <h4 className="text-xl font-bold text-slate-900">Welcome to LocalRank</h4>
+              <h4 className="text-xl font-bold text-slate-900">Welcome to LocalRank AI</h4>
               <p className="text-xs text-slate-500 max-w-xs mx-auto">
                 Your account is ready. You're signed in as{' '}
                 <strong className="text-slate-800">{signedUpUser?.email}</strong>.

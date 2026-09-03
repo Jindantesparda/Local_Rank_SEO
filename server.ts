@@ -55,22 +55,27 @@ async function startServer() {
         business.website = targetUrl;
       }
 
-      // Step 1: Real Crawler
+      // Step 1: Real Crawler with retry logic
       let crawlData;
       try {
         crawlData = await crawlWebsite(targetUrl, Math.min(maxPages, 30), business);
       } catch (crawlErr: unknown) {
         const msg = crawlErr instanceof Error ? crawlErr.message : 'Crawler error';
+        console.error('Crawl failed:', msg);
         return res.status(422).json({
-          error: `We couldn't crawl this website. ${msg}. Please verify the website is online and accessible.`,
+          error: `We couldn't reach your website. ${msg}. Please ensure:\n- The website is online and public\n- The domain is correct (e.g., example.com)\n- The server accepts bot requests`,
         });
       }
 
-      if (!crawlData.pages || crawlData.pages.length === 0) {
+      if (!crawlData || !crawlData.pages || crawlData.pages.length === 0) {
+        console.error('No pages crawled for:', targetUrl);
         return res.status(422).json({
-          error: 'We could not reach or parse any HTML pages from this website. The server may be blocking bot requests or requiring JavaScript rendering.',
+          error: 'We could not reach or parse any pages from this website. The server may be offline, blocking bot requests, or requiring JavaScript rendering.',
         });
       }
+
+      // Log successful crawl
+      console.log(`Successfully crawled ${crawlData.pages.length} pages from ${targetUrl}`);
 
       // Step 2: Deterministic Scoring
       const scoreBreakdown = calculateSeoScore(crawlData, business);
@@ -158,7 +163,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`LocalRank AI server running on http://0.0.0.0:${PORT}`);
+    console.log(`LocalRank server running on http://0.0.0.0:${PORT}`);
   });
 }
 
