@@ -59,10 +59,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-indigo-100 selection:text-indigo-900 font-sans">
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-16 pb-20 lg:pt-24 lg:pb-28 border-b border-slate-200 bg-gradient-to-b from-white via-slate-50/50 to-slate-50">
+      <section className="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 border-b border-slate-200 bg-gradient-to-b from-white via-slate-50/50 to-slate-50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-
-
           {/* Core Prompt Hero Title */}
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 max-w-4xl mx-auto leading-[1.15]">
             Find the issues that may be limiting your Google visibility.
@@ -98,7 +96,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
           </div>
 
           {/* Interactive Bento Preview Dashboard Card */}
-          <div className="mt-14 relative mx-auto max-w-4xl text-left">
+          <div className="mt-10 relative mx-auto max-w-4xl text-left">
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-xl">
               {/* Window Header */}
               <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-100">
@@ -106,10 +104,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
                   <div className="w-3 h-3 rounded-full bg-rose-400" />
                   <div className="w-3 h-3 rounded-full bg-amber-400" />
                   <div className="w-3 h-3 rounded-full bg-emerald-400" />
-                  <span className="ml-2 text-xs font-mono text-slate-400">app.localrank.ai</span>
+                  <span className="ml-2 text-xs font-mono text-slate-400">localrank.audit</span>
                 </div>
                 <span className="text-xs font-medium px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  Example Business · Sample Score: 68/100
+                  Example LocalRank Audit · Score: 68/100
                 </span>
               </div>
 
@@ -182,7 +180,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
                         <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.2 rounded font-medium">High impact · Medium</span>
                       </div>
                       <p className="text-[11px] text-slate-600 mt-1 pl-4">
-                        Generate ready-to-paste Schema.org JSON-LD to qualify for Google Local Pack.
+                        Generate ready-to-paste Schema.org JSON-LD to enhance your presence in local search results.
                       </p>
                     </div>
 
@@ -205,59 +203,50 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
       </section>
 
       {/* How it Works Section */}
-      <section className="py-16 sm:py-20 bg-white border-b border-slate-200">
+      <section className="py-12 sm:py-16 bg-white border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-14">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">The Simple Flow</span>
-            <h2 className="text-3xl font-bold text-slate-900 mt-1">How LocalRank Works</h2>
-            <p className="text-slate-600 text-sm mt-2">
-              No complicated setups or SEO agencies charging $1,500/month. Three direct steps to ranking improvements.
-            </p>
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">How LocalRank Works</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-left relative">
-              <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-lg mb-4">
-                1
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 text-center">
+            <div className="flex-1 max-w-xs">
+              <div className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold text-sm mb-2">
+                01
               </div>
-              <h3 className="font-bold text-lg text-slate-900">Enter Business Details</h3>
-              <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                Provide your website URL, primary city (e.g. Austin, Texas), and core services. Takes under 60 seconds.
-              </p>
+              <h3 className="font-semibold text-sm text-slate-900">Enter your business</h3>
+              <p className="text-xs text-slate-600 mt-1">Website URL, location, and services</p>
             </div>
 
-            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-left relative">
-              <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-lg mb-4">
-                2
+            <div className="hidden sm:block text-slate-300 text-xl">→</div>
+
+            <div className="flex-1 max-w-xs">
+              <div className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold text-sm mb-2">
+                02
               </div>
-              <h3 className="font-bold text-lg text-slate-900">Automated Crawler & Scoring</h3>
-              <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                Our bot crawls your pages, tests HTTPS, headings, internal links, local keywords, and calculates a deterministic 100-pt score.
-              </p>
+              <h3 className="font-semibold text-sm text-slate-900">We crawl your site</h3>
+              <p className="text-xs text-slate-600 mt-1">Analyze pages, structure, and SEO signals</p>
             </div>
 
-            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-left relative">
-              <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center text-lg mb-4">
-                3
+            <div className="hidden sm:block text-slate-300 text-xl">→</div>
+
+            <div className="flex-1 max-w-xs">
+              <div className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600 text-white font-bold text-sm mb-2">
+                03
               </div>
-              <h3 className="font-bold text-lg text-slate-900">Get Prioritized Fixes</h3>
-              <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                See your Top 5 priorities ranked by Impact × Confidence ÷ Effort, with copy-paste title tags, meta descriptions, and schema code.
-              </p>
+              <h3 className="font-semibold text-sm text-slate-900">Get prioritized fixes</h3>
+              <p className="text-xs text-slate-600 mt-1">Copy-paste ready action plan ranked by impact</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="py-16 sm:py-20 bg-slate-50 border-b border-slate-200">
+      <section className="py-12 sm:py-16 bg-slate-50 border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-14">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Built For Small Business Owners</span>
-            <h2 className="text-3xl font-bold text-slate-900 mt-1">Everything You Need to Rank Higher</h2>
-            <p className="text-slate-600 text-sm mt-2">
-              We cut out 95% of the bloated enterprise SEO metrics to focus purely on what moves the needle for local businesses.
-            </p>
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Built For Local Businesses</span>
+            <h2 className="text-3xl font-bold text-slate-900 mt-1">Know What to Fix. Know What to Do Next.</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -280,7 +269,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
               <div>
                 <h3 className="font-bold text-slate-900 text-base">Prioritized Fixes (Impact ÷ Effort)</h3>
                 <p className="text-sm text-slate-600 mt-1">
-                  Don't drown in 50 warnings. We calculate the highest return tasks first so you can complete them during your lunch break.
+                  Don't drown in 50 warnings. We calculate the highest return tasks first so you can complete them efficiently.
                 </p>
               </div>
             </div>
@@ -313,21 +302,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
       </section>
 
       {/* Example SEO Report (Before and After) */}
-      <section className="py-16 sm:py-20 bg-white border-b border-slate-200">
+      <section className="py-12 sm:py-16 bg-white border-b border-slate-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">The Power of Direct Fixes</span>
-            <h2 className="text-3xl font-bold text-slate-900 mt-1">See the Fixes Before You Implement</h2>
-            <p className="text-slate-600 text-sm mt-2">
-              Here is how LocalRank transforms vague, low-ranking website copy into high-performing Google magnets.
-            </p>
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-slate-900">See the Fixes Before You Implement</h2>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
             <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-200">
-              <span className="text-xs font-bold uppercase text-slate-500">Example: Plumbing Company in Your City</span>
+              <span className="text-xs font-bold uppercase text-slate-500">Example LocalRank Audit · Score: 68/100</span>
               <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">
-                Homepage Title Fix
+                Homepage Title
               </span>
             </div>
 
@@ -364,9 +349,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
       </section>
 
       {/* Pricing Section */}
-      <section className="py-16 sm:py-20 bg-slate-50 border-b border-slate-200" id="pricing">
+      <section className="py-12 sm:py-16 bg-slate-50 border-b border-slate-200" id="pricing">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-14">
+          <div className="text-center max-w-2xl mx-auto mb-10">
             <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Transparent Pricing</span>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mt-1">Start Free. Grow Your Google Visibility.</h2>
             <p className="text-slate-600 text-sm sm:text-base mt-2.5 max-w-xl mx-auto">
@@ -459,15 +444,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0 font-medium text-slate-900" />
-                    <span className="font-medium text-slate-900">Weekly SEO monitoring</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span>Audit history & progress tracking</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span>SEO issue alerts</span>
+                    <span className="font-medium text-slate-900">Weekly monitoring</span>
                   </li>
                 </ul>
               </div>
@@ -511,20 +488,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
                     <span>Full SEO audits</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span>Advanced schema & content analysis</span>
-                  </li>
-                  <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0 font-medium text-slate-900" />
-                    <span className="font-medium text-slate-900">Daily SEO monitoring</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0 font-medium text-indigo-700" />
-                    <span className="font-medium text-indigo-700">Competitor insights</span>
+                    <span className="font-medium text-slate-900">Weekly monitoring</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span>Priority email support</span>
+                    <span>Email support</span>
                   </li>
                 </ul>
               </div>
@@ -543,7 +512,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
           </div>
 
           {/* Tiny Comparison Below Cards */}
-          <div className="mt-12 p-6 rounded-2xl bg-white border border-slate-200 shadow-xs max-w-4xl mx-auto">
+          <div className="mt-8 p-6 rounded-2xl bg-white border border-slate-200 shadow-xs max-w-4xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
@@ -581,9 +550,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
       </section>
 
       {/* FAQ Section */}
-      <section className="py-16 sm:py-20 bg-white border-b border-slate-200">
+      <section className="py-12 sm:py-16 bg-white border-b border-slate-200">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-10">
             <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Common Questions</span>
             <h2 className="text-3xl font-bold text-slate-900 mt-1">Frequently Asked Questions</h2>
           </div>
@@ -617,7 +586,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
       </section>
 
       {/* Final Call to Action */}
-      <section className="py-16 sm:py-20 bg-indigo-950 text-white text-center border-t border-indigo-900">
+      <section className="py-12 sm:py-16 bg-indigo-950 text-white text-center border-t border-indigo-900">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
             Stop losing local customers to competitors on Google.

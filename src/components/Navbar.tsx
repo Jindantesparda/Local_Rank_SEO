@@ -84,7 +84,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <div>
               <span className="font-extrabold text-lg tracking-tight text-slate-800">LocalRank</span>
-              <p className="text-[10px] text-slate-400 leading-none">Small Business SEO</p>
+              <p className="text-[10px] text-slate-400 leading-none">Local SEO Platform</p>
             </div>
           </button>
 
