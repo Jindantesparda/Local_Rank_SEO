@@ -146,7 +146,7 @@ export const BillingView: React.FC<BillingViewProps> = ({ currentTier, onSelectT
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span>AI-powered recommendations</span>
+                <span>Detailed recommendations</span>
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0 font-medium text-slate-900" />

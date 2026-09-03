@@ -1,10 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Sparkles,
   Shield,
   User as UserIcon,
   RefreshCw,
-  Play,
   ArrowRight,
   ChevronDown,
   Building,
@@ -79,19 +77,40 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
             id="btn-logo-home"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-400 via-indigo-400 to-pink-400 flex items-center justify-center text-white font-bold shadow-xs group-hover:scale-105 transition">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-xs group-hover:scale-105 transition">
               L
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-lg tracking-tight text-slate-800">LocalRank</span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-sky-100/70 text-sky-700 border border-sky-200/50">
-                  AI
-                </span>
               </div>
-              <p className="text-[10px] text-slate-400 leading-none">Small Business SEO</p>
+              <p className="text-[10px] text-slate-400 leading-none">Local SEO platform</p>
             </div>
           </button>
+
+          {/* Landing page navigation (only when no workspace is active) */}
+          {!currentAudit && (
+            <nav className="hidden md:flex items-center gap-6 ml-4">
+              <a
+                href="#product"
+                className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
+              >
+                Product
+              </a>
+              <a
+                href="#how-it-works"
+                className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
+              >
+                How It Works
+              </a>
+              <a
+                href="#pricing"
+                className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
+              >
+                Pricing
+              </a>
+            </nav>
+          )}
 
           {/* Business Switcher (Requirement 6: User -> Business -> Audits) */}
           {currentUser && activeBusiness && (

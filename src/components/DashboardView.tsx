@@ -112,7 +112,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         ...prev,
         {
           sender: 'ai',
-          text: 'Could not reach the AI copilot. Check your connection and try again.',
+          text: 'Could not reach your SEO assistant. Check your connection and try again.',
           time: 'Now',
         },
       ]);
@@ -812,7 +812,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Card 3: "Chats" style widget -> AI SEO Assistant */}
+          {/* Card 3: SEO Assistant widget */}
           <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white/90 shadow-sm space-y-3">
             <div className="flex items-center justify-between text-xs font-bold text-slate-800">
               <div className="flex items-center gap-1.5">
@@ -849,7 +849,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask AI for a fix..."
+                placeholder="Ask about a fix..."
                 className="w-full pl-3.5 pr-9 py-2 bg-slate-50/90 border border-slate-200/80 rounded-full text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-400 transition"
               />
               <button

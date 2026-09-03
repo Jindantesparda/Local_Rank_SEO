@@ -65,7 +65,7 @@ export const PLAN_CONFIGS: Record<SubscriptionTier, PlanConfig> = {
       '50 audits per month',
       'Multi-business switcher',
       'Exportable client PDF reports',
-      'Priority AI SEO Copilot',
+      'Priority SEO support',
     ],
   },
 };

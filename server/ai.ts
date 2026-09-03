@@ -34,7 +34,7 @@ export async function generateAiRecommendations(
   if (client) {
     try {
       const prompt = `
-You are LocalRank AI, an expert SEO consultant for local small businesses.
+You are LocalRank, an expert SEO consultant for local small businesses.
 Analyze the following audited business and its identified SEO issues.
 
 BUSINESS DATA:
@@ -261,7 +261,7 @@ export async function generateCopilotResponse(
   if (client) {
     try {
       const prompt = `
-You are the LocalRank AI SEO copilot embedded inside a small business SEO audit dashboard.
+You are the LocalRank SEO assistant embedded inside a local SEO audit dashboard.
 Answer the business owner's question using ONLY the audit data below. Be concise, practical,
 and never invent crawl metrics that are not present in the audit data.
 
