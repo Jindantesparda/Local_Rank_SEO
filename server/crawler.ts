@@ -116,7 +116,10 @@ export async function crawlWebsite(
 
   try {
     const sitemapRes = await fetchWithTimeout(`${rootOrigin}/sitemap.xml`, 4000);
-    if (sitemapRes.status === 200 && sitemapRes.text.includes('<urlset') || sitemapRes.text.includes('<sitemapindex')) {
+    if (
+      sitemapRes.status === 200 &&
+      (sitemapRes.text.includes('<urlset') || sitemapRes.text.includes('<sitemapindex'))
+    ) {
       sitemapXmlFound = true;
     }
   } catch {

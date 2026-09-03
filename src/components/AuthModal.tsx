@@ -1,24 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Mail,
   Lock,
   User as UserIcon,
   ArrowRight,
-  Sparkles,
   CheckCircle2,
-  KeyRound,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { User } from '../types';
-import { SEED_USER_DANTE } from '../data/seedData';
 
-type AuthMode = 'login' | 'signup' | 'forgot' | 'reset-confirm' | 'welcome';
+type AuthMode = 'login' | 'signup' | 'welcome';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (user: User) => void;
+  onLogin: (user: User, token: string) => void;
   onPostSignupOnboard?: () => void;
   initialMode?: 'login' | 'signup';
   prefilledEmail?: string;
@@ -29,7 +27,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onLogin,
   onPostSignupOnboard,
-  initialMode = 'login',
+  initialMode = 'signup',
   prefilledEmail = '',
 }) => {
   const [mode, setMode] = useState<AuthMode>(initialMode);
@@ -37,13 +35,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [resetEmailSent, setResetEmailSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [signedUpUser, setSignedUpUser] = useState<User | null>(null);
+
+  // Reset the modal whenever it is reopened with a new requested mode
+  useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+      setError(null);
+      setEmail(prefilledEmail);
+      setName('');
+      setPassword('');
+      setConfirmPassword('');
+      setLoading(false);
+      setSignedUpUser(null);
+    }
+  }, [isOpen, initialMode, prefilledEmail]);
 
   if (!isOpen) return null;
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -52,43 +64,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    // Check if matching Dante
-    if (email.toLowerCase().includes('dante')) {
-      onLogin(SEED_USER_DANTE);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Login failed.');
+      }
+      onLogin(data.user, data.token);
       onClose();
-      return;
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    // Standard login or mock user
-    const loggedUser: User = {
-      id: `usr_${Date.now()}`,
-      name: name.trim() || email.split('@')[0] || 'Business Owner',
-      email: email.trim(),
-      password,
-      emailVerified: true,
-      subscription: {
-        plan: 'starter',
-        status: 'active',
-        expiresAt: '2027-09-03T00:00:00Z',
-      },
-      subscriptionTier: 'starter',
-      usage: {
-        auditsUsed: 1,
-        pagesCrawled: 15,
-        aiRequests: 3,
-      },
-      businessIds: [],
-      createdAt: new Date().toISOString(),
-    };
-
-    onLogin(loggedUser);
-    onClose();
   };
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
+    if (!name.trim()) {
+      setError('Please enter your name.');
+      return;
+    }
     if (!email.trim()) {
       setError('Please enter your email address.');
       return;
@@ -102,65 +105,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    const newUser: User = {
-      id: `usr_${Date.now()}`,
-      name: name.trim() || email.split('@')[0],
-      email: email.trim(),
-      password,
-      emailVerified: false, // Infrastructure ready: starts unverified
-      subscription: {
-        plan: 'free',
-        status: 'active',
-      },
-      subscriptionTier: 'free',
-      usage: {
-        auditsUsed: 0,
-        pagesCrawled: 0,
-        aiRequests: 0,
-      },
-      businessIds: [],
-      createdAt: new Date().toISOString(),
-    };
-
-    setSignedUpUser(newUser);
-    onLogin(newUser);
-    setMode('welcome');
-  };
-
-  const handleForgotSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!email.trim()) {
-      setError('Please enter your email address to receive the password reset link.');
-      return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Registration failed.');
+      }
+      setSignedUpUser(data.user);
+      onLogin(data.user, data.token);
+      setMode('welcome');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    setResetEmailSent(true);
-  };
-
-  const handleResetPasswordSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!password || password.length < 6) {
-      setError('New password must be at least 6 characters long.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    const user: User = {
-      id: `usr_reset_${Date.now()}`,
-      name: email.split('@')[0],
-      email: email.trim(),
-      password,
-      emailVerified: true,
-      subscription: { plan: 'free', status: 'active' },
-      subscriptionTier: 'free',
-      usage: { auditsUsed: 0, pagesCrawled: 0, aiRequests: 0 },
-      businessIds: [],
-    };
-    onLogin(user);
-    onClose();
   };
 
   const handleStartOnboarding = () => {
@@ -168,35 +131,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     if (onPostSignupOnboard) {
       onPostSignupOnboard();
     }
-  };
-
-  const handleDemoSignInDante = () => {
-    onLogin(SEED_USER_DANTE);
-    onClose();
-  };
-
-  const handleDemoSignInFree = () => {
-    const clinicOwner: User = {
-      id: 'usr_clinic_free',
-      name: 'Dr. T. Moyo',
-      email: 'owner@hararedentalclinic.co.zw',
-      password: 'password123',
-      emailVerified: true,
-      subscription: {
-        plan: 'free',
-        status: 'active',
-      },
-      subscriptionTier: 'free',
-      usage: {
-        auditsUsed: 1, // Free limit reached test
-        pagesCrawled: 14,
-        aiRequests: 2,
-      },
-      businessIds: ['biz-demo-harare-dental'],
-      createdAt: '2026-08-15T09:30:00Z',
-    };
-    onLogin(clinicOwner);
-    onClose();
   };
 
   return (
@@ -210,11 +144,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-sm text-slate-900 tracking-tight">
-                {mode === 'welcome' && 'Welcome to LocalRank AI 👋'}
+                {mode === 'welcome' && 'Welcome to LocalRank AI'}
                 {mode === 'signup' && 'Create LocalRank Account'}
                 {mode === 'login' && 'Sign in to LocalRank'}
-                {mode === 'forgot' && 'Reset Your Password'}
-                {mode === 'reset-confirm' && 'Set New Password'}
               </h3>
             </div>
           </div>
@@ -242,9 +174,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <h4 className="text-xl font-bold text-slate-900">Welcome to LocalRank AI 👋</h4>
+              <h4 className="text-xl font-bold text-slate-900">Welcome to LocalRank AI</h4>
               <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                Your account is ready! We've sent a verification link to{' '}
+                Your account is ready. You're signed in as{' '}
                 <strong className="text-slate-800">{signedUpUser?.email}</strong>.
               </p>
             </div>
@@ -252,7 +184,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="p-3.5 bg-sky-50/80 rounded-2xl border border-sky-100 text-left text-xs text-slate-600">
               <p className="font-bold text-sky-950 mb-1">Next: Connect your business</p>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Enter your website URL, city, and primary services so our SEO engine can tailor schema, local keywords, and competitor benchmarks.
+                Enter your website URL, city, and primary services so our SEO engine can tailor
+                schema, local keywords, and competitor benchmarks.
               </p>
             </div>
 
@@ -261,7 +194,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               className="w-full py-3 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
               id="btn-welcome-onboarding"
             >
-              <span>Set Up My Business & Audit →</span>
+              <span>Set Up My Business & Audit</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -270,40 +203,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* 2. SIGN IN (LOGIN) */}
         {mode === 'login' && (
           <div className="space-y-4">
-            {/* Quick Demo Pre-sets for Evaluator convenience */}
-            <div className="space-y-2 p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Quick Test Accounts
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={handleDemoSignInDante}
-                  className="py-1.5 px-2.5 bg-white hover:bg-slate-50 text-slate-800 text-[11px] font-bold rounded-xl border border-slate-200 shadow-2xs text-left truncate transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                  <span className="truncate">Dante (Business Plan)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDemoSignInFree}
-                  className="py-1.5 px-2.5 bg-white hover:bg-slate-50 text-slate-800 text-[11px] font-bold rounded-xl border border-slate-200 shadow-2xs text-left truncate transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span className="truncate">Clinic (Free Plan)</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="relative my-3 text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
-              </div>
-              <span className="relative px-3 bg-white text-[10px] text-slate-400 uppercase font-bold">
-                Or sign in with email
-              </span>
-            </div>
-
             <form onSubmit={handleLoginSubmit} className="space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Email</label>
@@ -321,19 +220,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-slate-700">Password</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError(null);
-                      setMode('forgot');
-                    }}
-                    className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 cursor-pointer"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
+                <label className="block font-bold text-slate-700 mb-1">Password</label>
                 <div className="relative">
                   <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-3" />
                   <input
@@ -349,10 +236,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs transition cursor-pointer"
+                disabled={loading}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs transition cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
                 id="btn-auth-login-submit"
               >
-                Log in
+                {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {loading ? 'Signing in...' : 'Log in'}
               </button>
             </form>
 
@@ -372,7 +261,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         )}
 
-        {/* 3. SIGN UP (Email, Password, Confirm password) */}
+        {/* 3. SIGN UP */}
         {mode === 'signup' && (
           <div className="space-y-4">
             <form onSubmit={handleSignupSubmit} className="space-y-3 text-xs">
@@ -382,7 +271,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <UserIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-3" />
                   <input
                     type="text"
-                    placeholder="e.g. Dante"
+                    placeholder="e.g. Alex Smith"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-400 text-slate-900"
@@ -437,10 +326,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs transition cursor-pointer"
+                disabled={loading}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs transition cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
                 id="btn-auth-signup-submit"
               >
-                Create Account
+                {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {loading ? 'Creating account...' : 'Create Account'}
               </button>
             </form>
 
@@ -457,125 +348,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 Log in
               </button>
             </div>
-          </div>
-        )}
-
-        {/* 4. FORGOT PASSWORD */}
-        {mode === 'forgot' && (
-          <div className="space-y-4 text-xs">
-            {!resetEmailSent ? (
-              <>
-                <p className="text-slate-600 leading-relaxed">
-                  Enter your email and we'll send you a password-reset link.
-                </p>
-
-                <form onSubmit={handleForgotSubmit} className="space-y-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Email Address</label>
-                    <div className="relative">
-                      <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-3" />
-                      <input
-                        type="email"
-                        required
-                        placeholder="name@company.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-400 text-slate-900"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs transition cursor-pointer"
-                  >
-                    Send Reset Link
-                  </button>
-                </form>
-              </>
-            ) : (
-              <div className="space-y-3 text-center py-2">
-                <div className="w-10 h-10 rounded-full bg-sky-100 text-sky-600 mx-auto flex items-center justify-center">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900">Reset link sent!</h4>
-                  <p className="text-slate-500 text-[11px] mt-1">
-                    We've emailed a password reset link to <strong>{email}</strong>.
-                  </p>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setMode('reset-confirm')}
-                    className="w-full py-2 px-3 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold rounded-xl border border-sky-200 transition cursor-pointer"
-                  >
-                    Set New Password (Test Flow) →
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="pt-3 border-t border-slate-100 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setResetEmailSent(false);
-                  setMode('login');
-                }}
-                className="text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
-              >
-                ← Back to Log in
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 5. RESET PASSWORD CONFIRM */}
-        {mode === 'reset-confirm' && (
-          <div className="space-y-4 text-xs">
-            <p className="text-slate-600">Choose a new, secure password for your account.</p>
-
-            <form onSubmit={handleResetPasswordSubmit} className="space-y-3">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">New Password</label>
-                <div className="relative">
-                  <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="Minimum 6 characters"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-400 text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Confirm New Password</label>
-                <div className="relative">
-                  <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="Confirm new password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-400 text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs transition cursor-pointer"
-              >
-                Save New Password & Sign In
-              </button>
-            </form>
           </div>
         )}
       </div>

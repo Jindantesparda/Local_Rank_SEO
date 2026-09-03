@@ -1,5 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
-import { Business, SeoIssue, AiRecommendation, SuggestedFix } from '../src/types';
+import { AuditResult, Business, SeoIssue, AiRecommendation, SuggestedFix } from '../src/types';
+import { guessCountryCode } from './country';
+
+const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 let genAIClient: GoogleGenAI | null = null;
 
@@ -77,7 +80,7 @@ Output ONLY raw valid JSON. No markdown ticks, no commentary.
 `;
 
       const response = await client.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: AI_MODEL,
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -147,20 +150,23 @@ export function generateCustomFix(
         targetElement: 'Image alt tag',
       };
 
-    case 'schema':
+    case 'schema': {
+      const countryCode = guessCountryCode(business.location);
+      const address: { '@type': string; addressLocality: string; addressCountry?: string } = {
+        '@type': 'PostalAddress',
+        addressLocality: cleanLoc,
+      };
+      if (countryCode) {
+        address.addressCountry = countryCode;
+      }
+
       const schemaObj = {
         "@context": "https://schema.org",
         "@type": getSchemaType(business.category),
         "name": business.name,
         "description": business.description || `${business.category} in ${business.location}`,
         "url": business.website,
-        "telephone": "+263-XX-XXXXXX",
-        "address": {
-          "@type": "PostalAddress",
-          "addressLocality": cleanLoc,
-          "addressCountry": business.location.includes('Zimbabwe') ? 'ZW' : 'US'
-        },
-        "priceRange": "$$"
+        "address": address
       };
       return {
         type: 'schema',
@@ -168,6 +174,7 @@ export function generateCustomFix(
         language: 'json',
         targetElement: '<script type="application/ld+json"> in <head>',
       };
+    }
 
     default:
       return {
@@ -243,4 +250,124 @@ function fallbackRecommendations(issues: SeoIssue[], business: Business): AiReco
       recommendedValue: recVal,
     };
   });
+}
+
+export async function generateCopilotResponse(
+  message: string,
+  audit: AuditResult
+): Promise<string> {
+  const client = getAiClient();
+
+  if (client) {
+    try {
+      const prompt = `
+You are the LocalRank AI SEO copilot embedded inside a small business SEO audit dashboard.
+Answer the business owner's question using ONLY the audit data below. Be concise, practical,
+and never invent crawl metrics that are not present in the audit data.
+
+AUDIT DATA:
+Business: ${audit.business.name}
+Website: ${audit.business.website}
+Location: ${audit.business.location}
+Category: ${audit.business.category}
+Overall Score: ${audit.overallScore}/100
+Technical: ${audit.technicalScore}/25, On-page: ${audit.onpageScore}/30, Local: ${audit.localScore}/25, Content: ${audit.contentScore}/20
+Pages crawled: ${audit.pagesAnalyzed}
+
+ISSUES:
+${audit.issues
+  .filter((i) => i.severity !== 'good')
+  .slice(0, 8)
+  .map(
+    (i, idx) =>
+      `${idx + 1}. [${i.severity}] ${i.title}\n   Page: ${i.affectedPage}\n   Why it matters: ${i.whyItMatters}\n   Recommended action: ${i.recommendedAction}\n   Suggested fix: ${
+        i.suggestedFix?.recommended || 'See issue detail'
+      }`
+  )
+  .join('\n')}
+
+USER QUESTION: ${message}
+
+Reply in 1-3 short, plain-English sentences. If the question asks how to fix something,
+include the exact copy/code snippet from the matching issue when available.
+`;
+
+      const response = await client.models.generateContent({
+        model: AI_MODEL,
+        contents: prompt,
+        config: {
+          temperature: 0.3,
+        },
+      });
+
+      const text = response.text?.trim() || '';
+      if (text) {
+        return text.slice(0, 1200);
+      }
+    } catch (err) {
+      console.warn('Copilot Gemini call failed, using deterministic fallback:', err);
+    }
+  }
+
+  return deterministicCopilot(message, audit);
+}
+
+function deterministicCopilot(message: string, audit: AuditResult): string {
+  const q = message.toLowerCase();
+  const actionable = audit.issues.filter((i) => i.severity !== 'good');
+
+  // Try to match the question against a specific issue
+  const keywords: Array<{ terms: string[]; test: (issue: SeoIssue) => boolean }> = [
+    {
+      terms: ['title'],
+      test: (i) => i.suggestedFix?.type === 'title' || i.title.toLowerCase().includes('title'),
+    },
+    {
+      terms: ['meta description', 'meta', 'description'],
+      test: (i) =>
+        i.suggestedFix?.type === 'metaDescription' ||
+        i.title.toLowerCase().includes('meta description'),
+    },
+    {
+      terms: ['schema', 'structured data', 'json-ld', 'json ld'],
+      test: (i) =>
+        i.suggestedFix?.type === 'schema' ||
+        i.actionType === 'generate_schema' ||
+        i.title.toLowerCase().includes('schema') ||
+        i.title.toLowerCase().includes('structured'),
+    },
+    {
+      terms: ['alt', 'image'],
+      test: (i) =>
+        i.suggestedFix?.type === 'altText' || i.title.toLowerCase().includes('alt'),
+    },
+    {
+      terms: ['page', 'content', 'service'],
+      test: (i) =>
+        i.actionType === 'generate_page' ||
+        i.title.toLowerCase().includes('page') ||
+        i.title.toLowerCase().includes('content'),
+    },
+  ];
+
+  for (const group of keywords) {
+    if (group.terms.some((t) => q.includes(t))) {
+      const match = actionable.find((i) => group.test(i));
+      if (match?.suggestedFix?.recommended) {
+        return `Here's how to fix "${match.title}": ${match.recommendedAction}\n\nCopy this: ${match.suggestedFix.recommended}`;
+      }
+      if (match) {
+        return `Here's how to fix "${match.title}": ${match.recommendedAction}`;
+      }
+    }
+  }
+
+  const top = audit.topPriorities?.slice(0, 3) || actionable.slice(0, 3);
+  if (top.length === 0) {
+    return 'Your audit looks clean — no critical issues were found. Keep your content fresh and re-audit after making changes.';
+  }
+
+  return `Your top priorities right now are:\n${top
+    .map((t, idx) => `${idx + 1}. ${t.title} — ${t.recommendedAction}`)
+    .join('\n')}\n\nOpen the Website Audit tab for the full breakdown.`;
 }

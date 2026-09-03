@@ -4,8 +4,8 @@ import { createServer as createViteServer } from 'vite';
 import { crawlWebsite } from './server/crawler';
 import { calculateSeoScore } from './server/scoring';
 import { generateIssues } from './server/issues';
-import { generateAiRecommendations, generateCustomFix } from './server/ai';
-import { DEMO_AUDIT_HARARE_DENTAL } from './src/data/demoData';
+import { generateAiRecommendations, generateCustomFix, generateCopilotResponse } from './server/ai';
+import { createAuthRouter } from './server/auth';
 import { AuditResult, Business } from './src/types';
 
 async function startServer() {
@@ -19,9 +19,22 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
-  // Demo audit
-  app.get('/api/demo', (req, res) => {
-    res.json({ audit: DEMO_AUDIT_HARARE_DENTAL });
+  // Auth & user account routes
+  app.use('/api/auth', createAuthRouter());
+
+  // Real AI SEO Copilot
+  app.post('/api/ai/copilot', async (req, res) => {
+    try {
+      const { message, audit } = req.body as { message?: string; audit?: AuditResult };
+      if (!message || !audit) {
+        return res.status(400).json({ error: 'Message and audit data are required.' });
+      }
+      const reply = await generateCopilotResponse(message, audit);
+      return res.json({ reply });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Copilot request failed';
+      return res.status(500).json({ error: message });
+    }
   });
 
   // Start Real Audit
@@ -126,7 +139,11 @@ async function startServer() {
   });
 
   // Vite middleware setup
-  if (process.env.NODE_ENV !== 'production') {
+  const runningCompiledBundle =
+    process.env.NODE_ENV === 'production' ||
+    (process.argv[1] || '').includes(`${path.sep}dist${path.sep}`);
+
+  if (!runningCompiledBundle) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

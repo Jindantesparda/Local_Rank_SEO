@@ -1,0 +1,75 @@
+// Best-effort country code detection from a free-text "City, Country" location string.
+// Returns an ISO 3166-1 alpha-2 code, or null when the country cannot be determined.
+export function guessCountryCode(location: string): string | null {
+  const text = (location || '').toLowerCase();
+
+  const map: Array<[string, string]> = [
+    ['zimbabwe', 'ZW'],
+    ['south africa', 'ZA'],
+    ['kenya', 'KE'],
+    ['nigeria', 'NG'],
+    ['zambia', 'ZM'],
+    ['botswana', 'BW'],
+    ['namibia', 'NA'],
+    ['tanzania', 'TZ'],
+    ['uganda', 'UG'],
+    ['ghana', 'GH'],
+    ['rwanda', 'RW'],
+    ['malawi', 'MW'],
+    ['mozambique', 'MZ'],
+    ['united kingdom', 'GB'],
+    ['united states', 'US'],
+    ['usa', 'US'],
+    ['canada', 'CA'],
+    ['australia', 'AU'],
+    ['new zealand', 'NZ'],
+    ['ireland', 'IE'],
+    ['india', 'IN'],
+    ['pakistan', 'PK'],
+    ['bangladesh', 'BD'],
+    ['singapore', 'SG'],
+    ['malaysia', 'MY'],
+    ['philippines', 'PH'],
+    ['germany', 'DE'],
+    ['france', 'FR'],
+    ['spain', 'ES'],
+    ['italy', 'IT'],
+    ['netherlands', 'NL'],
+    ['belgium', 'BE'],
+    ['switzerland', 'CH'],
+    ['sweden', 'SE'],
+    ['norway', 'NO'],
+    ['denmark', 'DK'],
+    ['finland', 'FI'],
+    ['austria', 'AT'],
+    ['portugal', 'PT'],
+    ['poland', 'PL'],
+    ['czech', 'CZ'],
+    ['greece', 'GR'],
+    ['turkey', 'TR'],
+    ['united arab emirates', 'AE'],
+    ['uae', 'AE'],
+    ['saudi arabia', 'SA'],
+    ['qatar', 'QA'],
+    ['israel', 'IL'],
+    ['japan', 'JP'],
+    ['south korea', 'KR'],
+    ['china', 'CN'],
+    ['hong kong', 'HK'],
+    ['thailand', 'TH'],
+    ['vietnam', 'VN'],
+    ['indonesia', 'ID'],
+    ['brazil', 'BR'],
+    ['mexico', 'MX'],
+    ['argentina', 'AR'],
+    ['chile', 'CL'],
+    ['colombia', 'CO'],
+    ['peru', 'PE'],
+  ];
+
+  for (const [keyword, code] of map) {
+    if (text.includes(keyword)) return code;
+  }
+
+  return null;
+}

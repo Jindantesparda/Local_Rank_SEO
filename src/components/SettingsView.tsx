@@ -25,6 +25,7 @@ interface SettingsViewProps {
   currentUser: User | null;
   onUpdateBusiness: (updated: Business) => void;
   onUpdateUser: (updated: User) => void;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   onDeleteAccount: () => void;
   onLogout: () => void;
   onReRunAudit: () => void;
@@ -36,6 +37,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   currentUser,
   onUpdateBusiness,
   onUpdateUser,
+  onChangePassword,
   onDeleteAccount,
   onLogout,
   onReRunAudit,
@@ -52,8 +54,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [bizSaved, setBizSaved] = useState(false);
 
   // Account state
-  const [userName, setUserName] = useState(currentUser?.name || 'Dante');
-  const [userEmail, setUserEmail] = useState(currentUser?.email || 'dante@manicaskyview.co.zw');
+  const [userName, setUserName] = useState(currentUser?.name || '');
+  const [userEmail, setUserEmail] = useState(currentUser?.email || '');
   const [showChangeEmail, setShowChangeEmail] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [newEmailInput, setNewEmailInput] = useState('');
@@ -110,16 +112,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     onUpdateUser({
       ...currentUser,
       email: newEmailInput.trim(),
-      emailVerified: false, // Triggers verification
     });
     setUserEmail(newEmailInput.trim());
     setShowChangeEmail(false);
     setNewEmailInput('');
-    setAccountSavedMsg('Email updated! Please check your inbox for verification.');
-    setTimeout(() => setAccountSavedMsg(null), 3500);
+    setAccountSavedMsg('Email updated successfully.');
+    setTimeout(() => setAccountSavedMsg(null), 3000);
   };
 
-  const handleChangePasswordSubmit = (e: React.FormEvent) => {
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
     if (newPassword.length < 6) {
@@ -130,16 +131,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       alert('Passwords do not match.');
       return;
     }
-    onUpdateUser({
-      ...currentUser,
-      password: newPassword,
-    });
-    setShowChangePassword(false);
-    setOldPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setAccountSavedMsg('Password changed successfully.');
-    setTimeout(() => setAccountSavedMsg(null), 3000);
+    if (!oldPassword) {
+      alert('Please enter your current password.');
+      return;
+    }
+
+    try {
+      await onChangePassword(oldPassword, newPassword);
+      setShowChangePassword(false);
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setAccountSavedMsg('Password changed successfully.');
+      setTimeout(() => setAccountSavedMsg(null), 3000);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to change password.');
+    }
   };
 
   const currentPlan = currentUser?.subscription?.plan || currentUser?.subscriptionTier || 'free';
@@ -194,7 +201,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </p>
               </div>
               <span className="px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-mono text-slate-600">
-                User ID: {currentUser?.id || 'usr_demo'}
+                User ID: {currentUser?.id || '—'}
               </span>
             </div>
 

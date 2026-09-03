@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { X, Copy, Check, Sparkles, FileCode } from 'lucide-react';
-import { SeoIssue, SuggestedFix } from '../types';
+import React, { useState, useEffect } from 'react';
+import { X, Copy, Check, Sparkles } from 'lucide-react';
+import { SeoIssue } from '../types';
 
 interface EditFixModalProps {
   isOpen: boolean;
@@ -15,11 +15,18 @@ export const EditFixModal: React.FC<EditFixModalProps> = ({
   issue,
   onApplyFix,
 }) => {
-  if (!isOpen || !issue) return null;
-
-  const initialFixText = issue.suggestedFix?.recommended || issue.recommendedAction;
+  const initialFixText = issue?.suggestedFix?.recommended || issue?.recommendedAction || '';
   const [editedText, setEditedText] = useState(initialFixText);
   const [copied, setCopied] = useState(false);
+
+  // Reset the editor whenever a different issue is opened
+  useEffect(() => {
+    setEditedText(initialFixText);
+    setCopied(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issue?.id]);
+
+  if (!isOpen || !issue) return null;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(editedText);

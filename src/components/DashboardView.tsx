@@ -44,7 +44,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenPageGenerator,
 }) => {
   const [collectionFilter, setCollectionFilter] = useState<'all' | 'popular' | 'top'>('all');
-  const [timeframe, setTimeframe] = useState<'d' | 'm' | 'y'>('m');
   const [copiedFix, setCopiedFix] = useState(false);
   const [copiedPriorityId, setCopiedPriorityId] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState('');
@@ -55,8 +54,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setTimeout(() => setCopiedPriorityId(null), 2200);
   };
   const [chatMessages, setChatMessages] = useState<Array<{ sender: 'ai' | 'user'; text: string; time: string }>>([
-    { sender: 'ai', text: 'Found 3 quick fixes for local rankings in ' + (audit.business.location.split(',')[0] || 'your area'), time: '10:15 PM' },
-    { sender: 'user', text: 'Apply homepage title recommendation', time: '10:27 PM' },
+    { sender: 'ai', text: 'Ask me anything about your audit. I can pull the exact fixes from your report.', time: 'Now' },
   ]);
 
   const currentHour = new Date().getHours();
@@ -75,7 +73,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     goodCount,
     topPriorities,
     business,
-    isDemo,
   } = audit;
 
   const spotlightIssue =
@@ -93,64 +90,66 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
-  const handleSendChat = (e: React.FormEvent) => {
+  const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
-    const newMsg = { sender: 'user' as const, text: chatInput, time: 'Just now' };
+    const newMsg = { sender: 'user' as const, text: chatInput, time: 'Now' };
     setChatMessages((prev) => [...prev, newMsg]);
     const inputVal = chatInput;
     setChatInput('');
 
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/ai/copilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: inputVal, audit }),
+      });
+      const data = await res.json();
+      const reply = data.reply || 'Sorry, I could not generate a response. Please try again.';
+      setChatMessages((prev) => [...prev, { sender: 'ai', text: reply, time: 'Now' }]);
+    } catch {
       setChatMessages((prev) => [
         ...prev,
         {
           sender: 'ai',
-          text: `Suggested snippet for "${inputVal.slice(0, 25)}...": Add schema and optimized meta description.`,
-          time: 'Just now',
+          text: 'Could not reach the AI copilot. Check your connection and try again.',
+          time: 'Now',
         },
       ]);
-    }, 700);
+    }
   };
 
-  // 13 rounded pastel bars for the Crawl History bar chart (alternating sky-blue and candy-pink)
-  const barData = [
-    { height: 28, color: '#38bdf8' },
-    { height: 42, color: '#38bdf8' },
-    { height: 35, color: '#f472b6' },
-    { height: 50, color: '#38bdf8' },
-    { height: 24, color: '#f472b6' },
-    { height: 60, color: '#38bdf8' },
-    { height: 45, color: '#f472b6' },
-    { height: 75, color: '#38bdf8' },
-    { height: 88, color: '#38bdf8' },
-    { height: 62, color: '#f472b6' },
-    { height: 80, color: '#38bdf8' },
-    { height: 95, color: '#38bdf8' },
-    { height: 40, color: '#f472b6' },
+  // Real score history for the trend chart (only when previous audits exist)
+  const auditHistory = audit.auditHistory || [];
+  const scoreSeries = [...auditHistory.map((h) => h.score).reverse(), overallScore].slice(-13);
+  const chartBars = scoreSeries.map((score) => ({
+    height: Math.max(6, Math.min(100, score)),
+    color: '#38bdf8',
+  }));
+
+  // Pillar cards: percentage of their category maximum
+  const pillarCards = [
+    { key: 'technical', label: 'Technical SEO', score: technicalScore, max: 25, pct: Math.round((technicalScore / 25) * 100) },
+    { key: 'onpage', label: 'On-Page Meta', score: onpageScore, max: 30, pct: Math.round((onpageScore / 30) * 100) },
+    { key: 'local', label: 'Local Signals', score: localScore, max: 25, pct: Math.round((localScore / 25) * 100) },
+    { key: 'content', label: 'Content Depth', score: contentScore, max: 20, pct: Math.round((contentScore / 20) * 100) },
   ];
+  const sortedPillars = [...pillarCards].sort((a, b) => b.pct - a.pct);
+  const visiblePillarKeys = new Set(
+    collectionFilter === 'all'
+      ? sortedPillars.map((p) => p.key)
+      : collectionFilter === 'popular'
+      ? sortedPillars.slice(0, 2).map((p) => p.key)
+      : sortedPillars.slice(0, 1).map((p) => p.key)
+  );
+
+  // Coverage rings: passed vs open fixes, derived from the audit
+  const totalChecks = Math.max(1, audit.issues.length);
+  const passedRatio = goodCount / totalChecks;
+  const fixesRatio = Math.max(0, (audit.issues.length - goodCount) / totalChecks);
 
   return (
     <div className="space-y-6">
-      {/* Demo Mode Notice with pastel styling */}
-      {isDemo && (
-        <div className="p-3.5 bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-pink-50/80 border border-amber-200/70 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-xs backdrop-blur-md">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
-            <span>
-              <strong className="font-semibold text-amber-950">Demo Preview:</strong> Benchmark findings for "{business.name}".
-              Scan your domain for live crawl metrics.
-            </span>
-          </div>
-          <button
-            onClick={onOpenAuditModal}
-            className="font-bold text-sky-600 hover:text-sky-700 underline shrink-0 cursor-pointer"
-          >
-            Audit My Live Website →
-          </button>
-        </div>
-      )}
-
       {/* Executive Business & Audit Overview Card (Requirement 7) */}
       <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 sm:p-7 border border-white/90 shadow-sm text-left">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-100">
@@ -403,7 +402,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* Card 1: Technical SEO */}
               <div
                 onClick={() => onNavigateTab('audit')}
-                className="group relative bg-gradient-to-b from-white/90 via-sky-50/60 to-purple-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center"
+                className={`group relative bg-gradient-to-b from-white/90 via-sky-50/60 to-purple-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
+                  visiblePillarKeys.has('technical') ? '' : 'hidden'
+                }`}
               >
                 {/* Floating pill badge like 24.06 ETH */}
                 <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white/80 border border-sky-100 shadow-2xs flex items-center gap-1">
@@ -421,14 +422,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 <div className="mt-2 w-full">
                   <p className="text-xs font-bold text-slate-800 truncate">Technical SEO</p>
-                  <p className="text-[11px] font-semibold text-sky-600 mt-0.5">Health +78%</p>
+                  <p className="text-[11px] font-semibold text-sky-600 mt-0.5">Health {Math.round((technicalScore / 25) * 100)}%</p>
                 </div>
               </div>
 
               {/* Card 2: On-Page SEO */}
               <div
                 onClick={() => onNavigateTab('audit')}
-                className="group relative bg-gradient-to-b from-white/90 via-purple-50/60 to-pink-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center"
+                className={`group relative bg-gradient-to-b from-white/90 via-purple-50/60 to-pink-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
+                  visiblePillarKeys.has('onpage') ? '' : 'hidden'
+                }`}
               >
                 <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white/80 border border-purple-100 shadow-2xs flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
@@ -444,14 +447,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 <div className="mt-2 w-full">
                   <p className="text-xs font-bold text-slate-800 truncate">On-Page Meta</p>
-                  <p className="text-[11px] font-semibold text-purple-600 mt-0.5">Optimized +12%</p>
+                  <p className="text-[11px] font-semibold text-purple-600 mt-0.5">Optimized {Math.round((onpageScore / 30) * 100)}%</p>
                 </div>
               </div>
 
               {/* Card 3: Local Signals */}
               <div
                 onClick={() => onNavigateTab('audit')}
-                className="group relative bg-gradient-to-b from-white/90 via-pink-50/60 to-purple-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center"
+                className={`group relative bg-gradient-to-b from-white/90 via-pink-50/60 to-purple-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
+                  visiblePillarKeys.has('local') ? '' : 'hidden'
+                }`}
               >
                 <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white/80 border border-pink-100 shadow-2xs flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-pink-400" />
@@ -467,14 +472,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 <div className="mt-2 w-full">
                   <p className="text-xs font-bold text-slate-800 truncate">Local Signals</p>
-                  <p className="text-[11px] font-semibold text-pink-600 mt-0.5">Reach +84%</p>
+                  <p className="text-[11px] font-semibold text-pink-600 mt-0.5">Reach {Math.round((localScore / 25) * 100)}%</p>
                 </div>
               </div>
 
               {/* Card 4: Content Depth */}
               <div
                 onClick={() => onNavigateTab('audit')}
-                className="group relative bg-gradient-to-b from-white/90 via-sky-50/60 to-teal-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center"
+                className={`group relative bg-gradient-to-b from-white/90 via-sky-50/60 to-teal-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
+                  visiblePillarKeys.has('content') ? '' : 'hidden'
+                }`}
               >
                 <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white/80 border border-teal-100 shadow-2xs flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
@@ -490,7 +497,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 <div className="mt-2 w-full">
                   <p className="text-xs font-bold text-slate-800 truncate">Content Depth</p>
-                  <p className="text-[11px] font-semibold text-teal-600 mt-0.5">Coverage +65%</p>
+                  <p className="text-[11px] font-semibold text-teal-600 mt-0.5">Coverage {Math.round((contentScore / 20) * 100)}%</p>
                 </div>
               </div>
             </div>
@@ -504,60 +511,50 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <h3 className="text-sm font-bold text-slate-800 tracking-tight">
                   Crawl & Score Trend
                 </h3>
-
-                {/* d, m, y filter buttons matching reference image */}
-                <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
-                  {(['d', 'm', 'y'] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTimeframe(t)}
-                      className={`w-6 h-6 rounded-full flex items-center justify-center transition cursor-pointer ${
-                        timeframe === t ? 'text-slate-900 bg-slate-100 font-bold shadow-2xs' : 'hover:text-slate-700'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
               </div>
 
-              {/* Pastel Vertical Bars Chart matching the exact visual style */}
-              <div className="relative pt-2 pb-1">
-                {/* Horizontal guide lines */}
-                <div className="flex flex-col justify-between h-36 text-[10px] text-slate-400 font-medium absolute inset-0 pointer-events-none">
-                  <div className="border-b border-slate-100/80 pb-0.5">90%</div>
-                  <div className="border-b border-slate-100/80 pb-0.5">60%</div>
-                  <div className="border-b border-slate-100/80 pb-0.5">30%</div>
-                  <div className="pb-0.5">0%</div>
-                </div>
+              {/* Score Trend Chart — real data only */}
+              {chartBars.length > 1 ? (
+                <div className="relative pt-2 pb-1">
+                  {/* Horizontal guide lines */}
+                  <div className="flex flex-col justify-between h-36 text-[10px] text-slate-400 font-medium absolute inset-0 pointer-events-none">
+                    <div className="border-b border-slate-100/80 pb-0.5">90%</div>
+                    <div className="border-b border-slate-100/80 pb-0.5">60%</div>
+                    <div className="border-b border-slate-100/80 pb-0.5">30%</div>
+                    <div className="pb-0.5">0%</div>
+                  </div>
 
-                {/* Rounded pastel bars */}
-                <div className="h-36 pl-8 flex items-end justify-between gap-1.5 sm:gap-2">
-                  {barData.map((bar, idx) => (
-                    <div
-                      key={idx}
-                      className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer"
-                    >
+                  {/* Bars */}
+                  <div className="h-36 pl-8 flex items-end justify-between gap-1.5 sm:gap-2">
+                    {chartBars.map((bar, idx) => (
                       <div
-                        className="w-full max-w-[14px] rounded-full transition-all duration-500 group-hover:opacity-80"
-                        style={{
-                          height: `${bar.height}%`,
-                          backgroundColor: bar.color,
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
+                        key={idx}
+                        className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer"
+                      >
+                        <div
+                          className="w-full max-w-[14px] rounded-full transition-all duration-500 group-hover:opacity-80"
+                          style={{
+                            height: `${bar.height}%`,
+                            backgroundColor: bar.color,
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
 
-                {/* X-axis labels: 01, 04, 07, 10, 13 */}
-                <div className="pl-8 pt-2 flex justify-between text-[10px] font-semibold text-slate-400">
-                  <span>01</span>
-                  <span>04</span>
-                  <span>07</span>
-                  <span>10</span>
-                  <span>13</span>
+                  {/* X-axis labels */}
+                  <div className="pl-8 pt-2 flex justify-between text-[10px] font-semibold text-slate-400">
+                    {chartBars.map((_, idx) => (
+                      <span key={idx}>{String(idx + 1).padStart(2, '0')}</span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="h-36 flex flex-col items-center justify-center text-center space-y-2 text-xs text-slate-500">
+                  <span className="font-bold text-slate-700">No score history yet</span>
+                  <span>Run a re-audit after applying fixes to see your trend here.</span>
+                </div>
+              )}
             </div>
 
             {/* Chart 2: "Coverage" Concentric Circular Rings (5 cols) */}
@@ -588,7 +585,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     strokeWidth="14"
                     fill="transparent"
                     strokeDasharray={2 * Math.PI * 68}
-                    strokeDashoffset={2 * Math.PI * 68 * (1 - 0.64)}
+                    strokeDashoffset={2 * Math.PI * 68 * (1 - fixesRatio)}
                     strokeLinecap="round"
                     className="transition-all duration-1000 ease-out"
                   />
@@ -611,7 +608,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     strokeWidth="14"
                     fill="transparent"
                     strokeDasharray={2 * Math.PI * 48}
-                    strokeDashoffset={2 * Math.PI * 48 * (1 - 0.94)}
+                    strokeDashoffset={2 * Math.PI * 48 * (1 - passedRatio)}
                     strokeLinecap="round"
                     className="transition-all duration-1000 ease-out"
                   />

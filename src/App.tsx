@@ -7,11 +7,9 @@ import {
   Settings,
   CreditCard,
   RefreshCw,
-  Play,
+  Plus,
   ArrowRight,
   ChevronRight,
-  Plus,
-  Search,
   AlertTriangle
 } from 'lucide-react';
 import { Navbar } from './components/Navbar';
@@ -27,33 +25,75 @@ import { BillingView } from './components/BillingView';
 import { EditFixModal } from './components/EditFixModal';
 import { PageGeneratorModal } from './components/PageGeneratorModal';
 import { AuthModal } from './components/AuthModal';
-import { EmailVerificationBanner } from './components/EmailVerificationBanner';
-import {
-  SEED_USER_DANTE,
-  SEED_BIZ_MANICA,
-  SEED_BIZ_ABC_PLUMBING,
-  SEED_AUDIT_MANICA,
-  SEED_AUDIT_ABC_PLUMBING,
-} from './data/seedData';
-import { DEMO_AUDIT_HARARE_DENTAL } from './data/demoData';
-import { AuditResult, Business, SeoIssue, User, SubscriptionTier } from './types';
+import { AuditHistoryEntry, AuditResult, Business, SeoIssue, User, SubscriptionTier } from './types';
 import { PLAN_CONFIGS, canUserRunAudit, canUserAddBusiness } from './config/plans';
 
 type ActiveView = 'landing' | 'dashboard' | 'audit' | 'recommendations' | 'pages' | 'settings' | 'billing';
 
+const TOKEN_KEY = 'localrank_token';
+const bizKey = (userId: string) => `localrank_biz_${userId}`;
+const auditsKey = (userId: string) => `localrank_audits_${userId}`;
+const activeBizKey = (userId: string) => `localrank_active_biz_${userId}`;
+
+function readStored<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStored(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.warn('Failed to persist state', e);
+  }
+}
+
+function removeStored(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {
+    console.warn(e);
+  }
+}
+
+function buildHistoryEntry(previous: AuditResult, current: AuditResult): AuditHistoryEntry {
+  const prevNonGood = previous.issues.filter((i) => i.severity !== 'good');
+  const currNonGood = current.issues.filter((i) => i.severity !== 'good');
+  const prevTitles = new Set(prevNonGood.map((i) => i.title.toLowerCase()));
+  const currTitles = new Set(currNonGood.map((i) => i.title.toLowerCase()));
+  const fixedItems = prevNonGood.filter((i) => !currTitles.has(i.title.toLowerCase())).map((i) => i.title);
+  const newIssues = currNonGood.filter((i) => !prevTitles.has(i.title.toLowerCase())).map((i) => i.title);
+
+  return {
+    date: new Date().toLocaleDateString(),
+    score: previous.overallScore,
+    scoreDiff: current.overallScore - previous.overallScore,
+    fixedCount: fixedItems.length,
+    fixedItems: fixedItems.slice(0, 3),
+    newIssuesCount: newIssues.length,
+    newPagesCount: Math.max(0, current.pagesAnalyzed - previous.pagesAnalyzed),
+    nextPriorities: current.topPriorities.slice(0, 3).map((i) => i.title),
+  };
+}
+
 export default function App() {
-  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const [activeView, setActiveView] = useState<ActiveView>('landing');
 
   // Hierarchy: User -> Businesses -> Audits
-  const [currentUser, setCurrentUser] = useState<User | null>(SEED_USER_DANTE);
-  const [businesses, setBusinesses] = useState<Business[]>([SEED_BIZ_MANICA, SEED_BIZ_ABC_PLUMBING]);
-  const [activeBusinessId, setActiveBusinessId] = useState<string>(SEED_BIZ_MANICA.id);
-  const [audits, setAudits] = useState<AuditResult[]>([SEED_AUDIT_MANICA, SEED_AUDIT_ABC_PLUMBING]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [activeBusinessId, setActiveBusinessId] = useState<string>('');
+  const [audits, setAudits] = useState<AuditResult[]>([]);
 
   // Modals & Popups
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'signup'>('login');
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'signup'>('signup');
   const [selectedFixIssue, setSelectedFixIssue] = useState<SeoIssue | null>(null);
   const [selectedPageDraftIssue, setSelectedPageDraftIssue] = useState<SeoIssue | null>(null);
   const [limitAlert, setLimitAlert] = useState<string | null>(null);
@@ -65,48 +105,95 @@ export default function App() {
   const [auditComplete, setAuditComplete] = useState(false);
   const [pendingGuestAudit, setPendingGuestAudit] = useState<AuditResult | null>(null);
 
-  // Load from localStorage on mount (if previous custom session exists)
+  // Restore an existing server session on mount, then load that user's saved data
   useEffect(() => {
+    let cancelled = false;
+
+    // Clear legacy v2 storage from older builds that shipped hardcoded demo data
     try {
-      const savedUser = localStorage.getItem('localrank_v2_user');
-      if (savedUser) {
-        setCurrentUser(JSON.parse(savedUser));
-      }
-      const savedBiz = localStorage.getItem('localrank_v2_businesses');
-      if (savedBiz) {
-        setBusinesses(JSON.parse(savedBiz));
-      }
-      const savedAudits = localStorage.getItem('localrank_v2_audits');
-      if (savedAudits) {
-        setAudits(JSON.parse(savedAudits));
-      }
-      const savedActiveBizId = localStorage.getItem('localrank_v2_active_biz');
-      if (savedActiveBizId) {
-        setActiveBusinessId(savedActiveBizId);
-      }
+      localStorage.removeItem('localrank_v2_user');
+      localStorage.removeItem('localrank_v2_businesses');
+      localStorage.removeItem('localrank_v2_audits');
+      localStorage.removeItem('localrank_v2_active_biz');
     } catch (e) {
-      console.warn('LocalStorage error:', e);
+      console.warn(e);
     }
+
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          removeStored(TOKEN_KEY);
+          return;
+        }
+        const data = await res.json();
+        if (cancelled || !data.user) return;
+
+        const uid: string = data.user.id;
+        const savedBiz = readStored<Business[]>(bizKey(uid), []);
+        const savedAudits = readStored<AuditResult[]>(auditsKey(uid), []);
+        const savedActive = readStored<string>(activeBizKey(uid), '');
+
+        setAuthToken(token);
+        setCurrentUser(data.user);
+        setBusinesses(savedBiz);
+        setAudits(savedAudits);
+        setActiveBusinessId(savedActive || savedBiz[0]?.id || '');
+        setActiveView(savedBiz.length > 0 ? 'dashboard' : 'landing');
+      } catch (err) {
+        console.warn('Session restore failed:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Save changes to localStorage helper
-  const persistState = (
-    user: User | null,
+  // Persist per-user workspace data to localStorage
+  const persistUserState = (
+    userId: string,
     bizList: Business[],
     auditList: AuditResult[],
     actBizId: string
   ) => {
+    writeStored(bizKey(userId), bizList);
+    writeStored(auditsKey(userId), auditList);
+    writeStored(activeBizKey(userId), actBizId);
+  };
+
+  // Keep the server-side user record in sync (fire-and-forget)
+  const syncUserToServer = async (user: User, tokenOverride?: string) => {
+    const token = tokenOverride || authToken;
+    if (!token) return;
     try {
-      if (user) {
-        localStorage.setItem('localrank_v2_user', JSON.stringify(user));
-      } else {
-        localStorage.removeItem('localrank_v2_user');
+      const res = await fetch('/api/auth/user', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: user.name,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          subscription: user.subscription,
+          subscriptionTier: user.subscriptionTier,
+          usage: user.usage,
+          businessIds: user.businessIds,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) setCurrentUser(data.user);
       }
-      localStorage.setItem('localrank_v2_businesses', JSON.stringify(bizList));
-      localStorage.setItem('localrank_v2_audits', JSON.stringify(auditList));
-      localStorage.setItem('localrank_v2_active_biz', actBizId);
-    } catch (e) {
-      console.warn(e);
+    } catch (err) {
+      console.warn('User sync failed:', err);
     }
   };
 
@@ -120,7 +207,9 @@ export default function App() {
   // Business Switcher handler
   const handleSelectBusiness = (businessId: string) => {
     setActiveBusinessId(businessId);
-    persistState(currentUser, businesses, audits, businessId);
+    if (currentUser) {
+      persistUserState(currentUser.id, businesses, audits, businessId);
+    }
   };
 
   // Add new business handler with plan check
@@ -149,7 +238,7 @@ export default function App() {
   // Pre-audit check for usage limits
   const handleTriggerAuditModal = () => {
     if (!currentUser) {
-      // Guest can crawl a website as part of the growth hack acquisition funnel!
+      // Guests can crawl a website and create an account to view results
       setIsOnboardingOpen(true);
       return;
     }
@@ -172,6 +261,21 @@ export default function App() {
   // Run audit handler
   const handleStartRealAudit = async (business: Business, maxPages: number) => {
     setIsOnboardingOpen(false);
+
+    // Enforce usage limits here too, so direct re-audits (e.g. from Settings) can't bypass them
+    if (currentUser) {
+      const check = canUserRunAudit({
+        subscriptionTier: currentUser.subscription?.plan || currentUser.subscriptionTier,
+        usage: currentUser.usage,
+      });
+      if (!check.allowed) {
+        setLimitAlert(check.reason || "You've reached your audit limit.");
+        setTimeout(() => setLimitAlert(null), 7000);
+        setActiveView('billing');
+        return;
+      }
+    }
+
     setAuditingBusiness(business);
     setIsAuditing(true);
     setAuditError(null);
@@ -193,29 +297,43 @@ export default function App() {
       const newAudit: AuditResult = data.audit;
 
       if (!currentUser) {
-        // Growth hack funnel: hold pending audit until account created
+        // Guest flow: hold the result until an account is created
         setPendingGuestAudit(newAudit);
-      } else {
-        // Associate business with user
-        const bizWithUser = { ...business, userId: currentUser.id };
-        const updatedBizList = [bizWithUser, ...businesses.filter((b) => b.id !== business.id)];
-        const updatedAudits = [newAudit, ...audits.filter((a) => a.id !== newAudit.id)];
-        const updatedUser: User = {
-          ...currentUser,
-          usage: {
-            ...currentUser.usage,
-            auditsUsed: currentUser.usage.auditsUsed + 1,
-            pagesCrawled: currentUser.usage.pagesCrawled + newAudit.pagesAnalyzed,
-          },
-          businessIds: Array.from(new Set([...currentUser.businessIds, bizWithUser.id])),
-        };
-
-        setBusinesses(updatedBizList);
-        setAudits(updatedAudits);
-        setActiveBusinessId(bizWithUser.id);
-        setCurrentUser(updatedUser);
-        persistState(updatedUser, updatedBizList, updatedAudits, bizWithUser.id);
+        setAuditComplete(true);
+        return;
       }
+
+      const uid = currentUser.id;
+
+      // If this business was audited before, record real audit history
+      const existingAudit = audits.find((a) => a.businessId === business.id);
+      if (existingAudit) {
+        newAudit.scoreDiff = newAudit.overallScore - existingAudit.overallScore;
+        newAudit.auditHistory = [
+          buildHistoryEntry(existingAudit, newAudit),
+          ...(existingAudit.auditHistory || []),
+        ];
+      }
+
+      const bizWithUser = { ...business, userId: uid };
+      const updatedBizList = [bizWithUser, ...businesses.filter((b) => b.id !== business.id)];
+      const updatedAudits = [newAudit, ...audits.filter((a) => a.businessId !== business.id)];
+      const updatedUser: User = {
+        ...currentUser,
+        usage: {
+          ...currentUser.usage,
+          auditsUsed: currentUser.usage.auditsUsed + 1,
+          pagesCrawled: currentUser.usage.pagesCrawled + newAudit.pagesAnalyzed,
+        },
+        businessIds: Array.from(new Set([...currentUser.businessIds, bizWithUser.id])),
+      };
+
+      setBusinesses(updatedBizList);
+      setAudits(updatedAudits);
+      setActiveBusinessId(bizWithUser.id);
+      setCurrentUser(updatedUser);
+      persistUserState(uid, updatedBizList, updatedAudits, bizWithUser.id);
+      syncUserToServer(updatedUser);
 
       setAuditComplete(true);
     } catch (err: unknown) {
@@ -230,94 +348,146 @@ export default function App() {
     setActiveView('dashboard');
   };
 
-  // Start Demo handler
-  const handleStartDemo = () => {
-    const demoBiz = DEMO_AUDIT_HARARE_DENTAL.business;
-    const updatedBizList = [demoBiz, ...businesses.filter((b) => b.id !== demoBiz.id)];
-    const updatedAudits = [DEMO_AUDIT_HARARE_DENTAL, ...audits.filter((a) => a.id !== DEMO_AUDIT_HARARE_DENTAL.id)];
-    setBusinesses(updatedBizList);
-    setAudits(updatedAudits);
-    setActiveBusinessId(demoBiz.id);
-    setActiveView('dashboard');
-    persistState(currentUser, updatedBizList, updatedAudits, demoBiz.id);
-  };
-
   // User auth handlers
-  const handleUserLogin = (user: User) => {
-    setCurrentUser(user);
+  const handleUserLogin = (user: User, token?: string) => {
+    const uid = user.id;
 
-    // If guest had a completed audit ready in the growth hack funnel, attach it!
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+      setAuthToken(token);
+    }
+
+    // Load any workspace data previously saved for this account
+    const savedBiz = readStored<Business[]>(bizKey(uid), []);
+    const savedAudits = readStored<AuditResult[]>(auditsKey(uid), []);
+    const savedActive = readStored<string>(activeBizKey(uid), '');
+
+    let nextBiz = savedBiz;
+    let nextAudits = savedAudits;
+    let nextActive = savedActive;
+    let nextUser = user;
+
+    // If a guest just completed an audit, attach it to the new account
     if (pendingGuestAudit) {
-      const attachedBiz = { ...pendingGuestAudit.business, userId: user.id };
-      const updatedBizList = [attachedBiz, ...businesses];
-      const updatedAudits = [pendingGuestAudit, ...audits];
-      const updatedUser: User = {
+      const attachedBiz = { ...pendingGuestAudit.business, userId: uid };
+      nextBiz = [attachedBiz, ...nextBiz.filter((b) => b.id !== attachedBiz.id)];
+      nextAudits = [pendingGuestAudit, ...nextAudits.filter((a) => a.id !== pendingGuestAudit.id)];
+      nextActive = attachedBiz.id;
+      nextUser = {
         ...user,
-        businessIds: [attachedBiz.id, ...user.businessIds],
+        businessIds: Array.from(new Set([...user.businessIds, attachedBiz.id])),
         usage: {
           ...user.usage,
           auditsUsed: user.usage.auditsUsed + 1,
+          pagesCrawled: user.usage.pagesCrawled + pendingGuestAudit.pagesAnalyzed,
         },
       };
 
-      setBusinesses(updatedBizList);
-      setAudits(updatedAudits);
-      setActiveBusinessId(attachedBiz.id);
-      setCurrentUser(updatedUser);
       setPendingGuestAudit(null);
       setIsAuditing(false);
       setAuditComplete(false);
-      setActiveView('dashboard');
-      persistState(updatedUser, updatedBizList, updatedAudits, attachedBiz.id);
-      return;
     }
 
-    persistState(user, businesses, audits, activeBusinessId);
+    setBusinesses(nextBiz);
+    setAudits(nextAudits);
+    setActiveBusinessId(nextActive || nextBiz[0]?.id || '');
+    setCurrentUser(nextUser);
+    setActiveView(nextBiz.length > 0 ? 'dashboard' : 'landing');
+    persistUserState(uid, nextBiz, nextAudits, nextActive || nextBiz[0]?.id || '');
+    syncUserToServer(nextUser, token);
   };
 
-  const handleUserLogout = () => {
-    setCurrentUser(null);
-    setActiveView('landing');
-    try {
-      localStorage.removeItem('localrank_v2_user');
-    } catch (e) {
-      console.warn(e);
+  const handleUserLogout = async () => {
+    if (authToken) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+      } catch (err) {
+        console.warn('Logout request failed:', err);
+      }
     }
-  };
 
-  const handleDeleteAccount = () => {
+    removeStored(TOKEN_KEY);
+    setAuthToken(null);
     setCurrentUser(null);
     setBusinesses([]);
     setAudits([]);
+    setActiveBusinessId('');
+    setPendingGuestAudit(null);
+    setIsAuditing(false);
+    setAuditComplete(false);
     setActiveView('landing');
-    try {
-      localStorage.clear();
-    } catch (e) {
-      console.warn(e);
+  };
+
+  const handleDeleteAccount = async () => {
+    const uid = currentUser?.id;
+
+    if (authToken) {
+      try {
+        await fetch('/api/auth/account', {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+      } catch (err) {
+        console.warn('Account deletion request failed:', err);
+      }
     }
+
+    removeStored(TOKEN_KEY);
+    if (uid) {
+      removeStored(bizKey(uid));
+      removeStored(auditsKey(uid));
+      removeStored(activeBizKey(uid));
+    }
+    setAuthToken(null);
+    setCurrentUser(null);
+    setBusinesses([]);
+    setAudits([]);
+    setActiveBusinessId('');
+    setPendingGuestAudit(null);
+    setIsAuditing(false);
+    setAuditComplete(false);
+    setActiveView('landing');
   };
 
   const handleUpdateBusiness = (updated: Business) => {
     const updatedBizList = businesses.map((b) => (b.id === updated.id ? updated : b));
+    const updatedAudits = audits.map((a) =>
+      a.businessId === updated.id ? { ...a, business: updated } : a
+    );
     setBusinesses(updatedBizList);
-    if (currentAudit) {
-      const updatedAudit = { ...currentAudit, business: updated };
-      const updatedAudits = audits.map((a) => (a.id === updatedAudit.id ? updatedAudit : a));
-      setAudits(updatedAudits);
-      persistState(currentUser, updatedBizList, updatedAudits, updated.id);
+    setAudits(updatedAudits);
+    if (currentUser) {
+      persistUserState(currentUser.id, updatedBizList, updatedAudits, activeBusinessId);
     }
   };
 
   const handleUpdateUser = (updated: User) => {
     setCurrentUser(updated);
-    persistState(updated, businesses, audits, activeBusinessId);
+    syncUserToServer(updated);
+    if (currentUser) {
+      persistUserState(currentUser.id, businesses, audits, activeBusinessId);
+    }
   };
 
-  const handleVerifyEmailNow = () => {
-    if (!currentUser) return;
-    const updated: User = { ...currentUser, emailVerified: true };
-    setCurrentUser(updated);
-    persistState(updated, businesses, audits, activeBusinessId);
+  const handleChangePassword = async (currentPassword: string, newPassword: string) => {
+    if (!authToken) {
+      throw new Error('You must be logged in to change your password.');
+    }
+    const res = await fetch('/api/auth/user/password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to change password.');
+    }
   };
 
   const handleSelectTier = (tier: SubscriptionTier) => {
@@ -335,7 +505,8 @@ export default function App() {
       subscriptionTier: tier,
     };
     setCurrentUser(updated);
-    persistState(updated, businesses, audits, activeBusinessId);
+    syncUserToServer(updated);
+    persistUserState(currentUser.id, businesses, audits, activeBusinessId);
   };
 
   return (
@@ -345,17 +516,7 @@ export default function App() {
       <div className="fixed bottom-[-10%] left-[-5%] w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-sky-200/40 via-blue-200/30 to-teal-100/25 blur-3xl pointer-events-none -z-10" />
       <div className="fixed top-[35%] left-[20%] w-[450px] h-[450px] rounded-full bg-gradient-to-r from-pink-200/20 via-purple-100/20 to-sky-100/20 blur-3xl pointer-events-none -z-10" />
 
-      {/* Email Verification Banner (Requirement 3) */}
-      {currentUser && (
-        <EmailVerificationBanner
-          email={currentUser.email}
-          isVerified={currentUser.emailVerified}
-          onVerifyNow={handleVerifyEmailNow}
-          onResendLink={() => console.log('Resending verification link...')}
-        />
-      )}
-
-      {/* Top Usage Limit Alert Bar (Requirement 12) */}
+      {/* Top Usage Limit Alert Bar */}
       {limitAlert && (
         <div className="bg-amber-500 text-white px-4 py-2.5 text-xs font-bold flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2 max-w-5xl mx-auto">
@@ -380,7 +541,6 @@ export default function App() {
         onSelectBusiness={handleSelectBusiness}
         onAddNewBusiness={handleAddNewBusiness}
         onOpenAuditModal={handleTriggerAuditModal}
-        onLoadDemo={handleStartDemo}
         onOpenAuth={() => {
           setAuthInitialMode('login');
           setIsAuthOpen(true);
@@ -411,7 +571,10 @@ export default function App() {
       ) : activeView === 'landing' || !currentAudit ? (
         <LandingPage
           onStartAudit={handleTriggerAuditModal}
-          onTryDemo={handleStartDemo}
+          onOpenAuthSignup={() => {
+            setAuthInitialMode('signup');
+            setIsAuthOpen(true);
+          }}
         />
       ) : (
         <div className="flex-1 max-w-[1520px] w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-7">
@@ -571,39 +734,33 @@ export default function App() {
                     Upgrade Plan
                   </button>
                 </div>
-
-                <div className="flex items-center justify-between px-2 text-xs font-medium text-slate-500">
-                  <span>Light mode</span>
-                  <div className="w-9 h-5 bg-sky-400 rounded-full p-0.5 flex items-center justify-end shadow-inner cursor-pointer">
-                    <div className="w-4 h-4 rounded-full bg-white shadow-2xs" />
-                  </div>
-                </div>
               </div>
             </aside>
 
             {/* Main Workstation */}
             <main className="flex-1 min-w-0 flex flex-col">
-              {/* Top Search and Action Pill Bar */}
+              {/* Top Action Pill Bar */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search issues, pages, keywords..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-white/80 border border-white/90 rounded-full text-xs text-slate-800 placeholder-slate-400 shadow-2xs focus:outline-none focus:ring-2 focus:ring-sky-400/30 backdrop-blur-md"
-                  />
+                <div>
+                  <h2 className="text-sm font-bold text-slate-600">
+                    {activeView === 'dashboard' && 'Overview'}
+                    {activeView === 'audit' && 'Full Website Audit'}
+                    {activeView === 'recommendations' && 'Prioritized Recommendations'}
+                    {activeView === 'pages' && 'Crawled Pages'}
+                    {activeView === 'settings' && 'Settings'}
+                    {activeView === 'billing' && 'Plans & Billing'}
+                  </h2>
+                  <p className="text-[11px] text-slate-400">LocalRank AI workspace</p>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <button
-                    onClick={handleTriggerAuditModal}
-                    className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs hover:shadow-sm flex items-center gap-1.5 transition cursor-pointer"
-                    id="btn-main-run-audit"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Run Website Audit</span>
-                  </button>
-                </div>
+                <button
+                  onClick={handleTriggerAuditModal}
+                  className="self-end sm:self-auto px-4 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs hover:shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+                  id="btn-main-run-audit"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Run Website Audit</span>
+                </button>
               </div>
 
               {/* Views */}
@@ -658,6 +815,7 @@ export default function App() {
                     currentUser={currentUser}
                     onUpdateBusiness={handleUpdateBusiness}
                     onUpdateUser={handleUpdateUser}
+                    onChangePassword={handleChangePassword}
                     onDeleteAccount={handleDeleteAccount}
                     onLogout={handleUserLogout}
                     onReRunAudit={() => handleStartRealAudit(currentAudit.business, 15)}

@@ -21,15 +21,15 @@ import {
 
 interface LandingPageProps {
   onStartAudit: () => void;
-  onTryDemo: () => void;
+  onOpenAuthSignup: () => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDemo }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAuthSignup }) => {
   const [copiedSample, setCopiedSample] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
 
   const handleCopySample = () => {
-    navigator.clipboard.writeText('ABC Plumbing | Professional Plumbers in Harare');
+    navigator.clipboard.writeText('Your Business | Professional Plumbers in Your City');
     setCopiedSample(true);
     setTimeout(() => setCopiedSample(false), 2000);
   };
@@ -78,7 +78,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
             LocalRank AI analyzes your website and gives you a simple, prioritized SEO action plan—so you know exactly what to fix first.
           </p>
 
-          {/* Primary & Secondary CTAs */}
+          {/* Primary CTA */}
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3.5">
             <button
               onClick={onStartAudit}
@@ -87,15 +87,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
             >
               <span>Analyze My Website</span>
               <ArrowRight className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={onTryDemo}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-white hover:bg-slate-100 text-slate-800 font-medium text-base border border-slate-200 shadow-xs transition"
-              id="btn-hero-demo"
-            >
-              <Play className="w-4 h-4 text-indigo-600 fill-indigo-600" />
-              <span>Try Demo</span>
             </button>
           </div>
 
@@ -120,10 +111,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
                   <div className="w-3 h-3 rounded-full bg-rose-400" />
                   <div className="w-3 h-3 rounded-full bg-amber-400" />
                   <div className="w-3 h-3 rounded-full bg-emerald-400" />
-                  <span className="ml-2 text-xs font-mono text-slate-400">audit-report-demo.localrank.ai</span>
+                  <span className="ml-2 text-xs font-mono text-slate-400">app.localrank.ai</span>
                 </div>
                 <span className="text-xs font-medium px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  Harare Dental Clinic · Score: 68/100 (+8)
+                  Example Business · Sample Score: 68/100
                 </span>
               </div>
 
@@ -135,9 +126,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
                     <div className="mt-2 flex items-baseline gap-2">
                       <span className="text-4xl font-bold text-slate-900">68</span>
                       <span className="text-lg font-semibold text-slate-400">/ 100</span>
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">+8 pts</span>
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Sample</span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">14 pages crawled and evaluated</p>
+                    <p className="text-xs text-slate-500 mt-1">Illustrative preview of an audit report</p>
                   </div>
 
                   <div className="mt-4 space-y-2 text-xs">
@@ -178,61 +169,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
                   </div>
 
                   <div className="space-y-2.5">
-                    <div className="p-2.5 rounded-lg bg-rose-50/70 border border-rose-200 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-rose-500" />
-                          <p className="text-xs font-bold text-slate-900">1. Improve homepage title tag</p>
-                          <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded font-medium">High impact · Easy</span>
-                        </div>
-                        <p className="text-[11px] text-slate-600 mt-1 pl-4">
-                          Current: "Home | Dental Clinic Zimbabwe" is missing your exact city Harare.
-                        </p>
+                    <div className="p-2.5 rounded-lg bg-rose-50/70 border border-rose-200">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                        <p className="text-xs font-bold text-slate-900">1. Improve homepage title tag</p>
+                        <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded font-medium">High impact · Easy</span>
                       </div>
-                      <button
-                        onClick={onTryDemo}
-                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-white border border-indigo-200 px-2.5 py-1 rounded-md shadow-xs transition"
-                      >
-                        Copy Fix
-                      </button>
+                      <p className="text-[11px] text-slate-600 mt-1 pl-4">
+                        Example: "Home | Your Business" is missing your city and primary service.
+                      </p>
                     </div>
 
-                    <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-amber-500" />
-                          <p className="text-xs font-bold text-slate-900">2. Add LocalBusiness structured data</p>
-                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.2 rounded font-medium">High impact · Medium</span>
-                        </div>
-                        <p className="text-[11px] text-slate-600 mt-1 pl-4">
-                          Generate ready-to-paste Schema.org JSON-LD to qualify for Google Local Pack.
-                        </p>
+                    <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        <p className="text-xs font-bold text-slate-900">2. Add LocalBusiness structured data</p>
+                        <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.2 rounded font-medium">High impact · Medium</span>
                       </div>
-                      <button
-                        onClick={onTryDemo}
-                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-white border border-indigo-200 px-2.5 py-1 rounded-md shadow-xs transition"
-                      >
-                        Get Schema
-                      </button>
+                      <p className="text-[11px] text-slate-600 mt-1 pl-4">
+                        Generate ready-to-paste Schema.org JSON-LD to qualify for Google Local Pack.
+                      </p>
                     </div>
 
-                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                          <p className="text-xs font-bold text-slate-900">3. Fix missing image alt text</p>
-                          <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded font-medium">Med impact · Easy</span>
-                        </div>
-                        <p className="text-[11px] text-slate-600 mt-1 pl-4">
-                          5 images have empty alt attributes. LocalRank AI generated descriptive tags.
-                        </p>
+                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                        <p className="text-xs font-bold text-slate-900">3. Fix missing image alt text</p>
+                        <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded font-medium">Med impact · Easy</span>
                       </div>
-                      <button
-                        onClick={onTryDemo}
-                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-white border border-indigo-200 px-2.5 py-1 rounded-md shadow-xs transition"
-                      >
-                        View Alt
-                      </button>
+                      <p className="text-[11px] text-slate-600 mt-1 pl-4">
+                        LocalRank AI generates descriptive alt tags for images that lack them.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -260,7 +227,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
               </div>
               <h3 className="font-bold text-lg text-slate-900">Enter Business Details</h3>
               <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                Provide your website URL, primary city (e.g. Harare, Zimbabwe), and core services. Takes under 60 seconds.
+                Provide your website URL, primary city (e.g. Austin, Texas), and core services. Takes under 60 seconds.
               </p>
             </div>
 
@@ -363,7 +330,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-6">
             <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-200">
-              <span className="text-xs font-bold uppercase text-slate-500">Example: Plumbing Company in Harare</span>
+              <span className="text-xs font-bold uppercase text-slate-500">Example: Plumbing Company in Your City</span>
               <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200">
                 Homepage Title Fix
               </span>
@@ -373,7 +340,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
               <div className="p-4 rounded-xl bg-rose-50/70 border border-rose-200">
                 <span className="text-xs font-bold text-rose-700 uppercase tracking-wide">Current Title (Hurting SEO)</span>
                 <div className="mt-2 font-mono text-xs text-rose-950 bg-white p-3 rounded-lg border border-rose-200">
-                  Home | ABC Plumbing
+                  Home | Your Plumbing Co.
                 </div>
                 <p className="text-xs text-rose-700 mt-2">
                   ❌ No location mentioned, no specific service keywords, Google has zero local signals.
@@ -383,7 +350,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
               <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200">
                 <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide">LocalRank AI Recommendation</span>
                 <div className="mt-2 font-mono text-xs text-emerald-950 bg-white p-3 rounded-lg border border-emerald-200 flex items-center justify-between">
-                  <span>ABC Plumbing | Professional Plumbers in Harare</span>
+                  <span>Your Plumbing Co. | Professional Plumbers in Your City</span>
                   <button
                     onClick={handleCopySample}
                     className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-sans font-semibold"
@@ -393,7 +360,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
                   </button>
                 </div>
                 <p className="text-xs text-emerald-800 mt-2">
-                  ✓ Targets "Plumbers in Harare", states business name, 51 characters (optimal length).
+                  ✓ Targets "Plumbers in Your City", states business name, 51 characters (optimal length).
                 </p>
               </div>
             </div>
@@ -512,11 +479,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
 
               <div className="mt-8 pt-4 border-t border-indigo-100 text-center">
                 <button
-                  onClick={onStartAudit}
+                  onClick={onOpenAuthSignup}
                   className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md transition"
                   id="btn-pricing-starter"
                 >
-                  Start Monitoring — $9/mo
+                  Get Started
                 </button>
                 <p className="text-[11px] text-indigo-600/80 mt-2 font-medium">Cancel anytime • 7-day money-back guarantee</p>
               </div>
@@ -569,11 +536,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
 
               <div className="mt-8 pt-4 border-t border-slate-100 text-center">
                 <button
-                  onClick={onStartAudit}
+                  onClick={onOpenAuthSignup}
                   className="w-full py-2.5 rounded-lg border border-slate-300 hover:bg-slate-50 font-semibold text-xs text-slate-800 transition"
                   id="btn-pricing-business"
                 >
-                  Choose Business — $19/mo
+                  Get Started
                 </button>
                 <p className="text-[11px] text-slate-400 mt-2 font-medium">For agencies & active businesses</p>
               </div>
@@ -672,13 +639,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
               <span>Analyze My Website</span>
               <ArrowRight className="w-4 h-4" />
             </button>
-            <button
-              onClick={onTryDemo}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-indigo-900 hover:bg-indigo-850 text-white font-medium text-sm border border-indigo-700 transition"
-            >
-              <Play className="w-3.5 h-3.5" />
-              <span>Try Demo First</span>
-            </button>
           </div>
         </div>
       </section>
@@ -694,7 +654,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onTryDem
             <span className="text-slate-500">© 2026 LocalRank AI Inc. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-6">
-            <button onClick={onTryDemo} className="hover:text-white transition">Demo Mode</button>
             <button onClick={onStartAudit} className="hover:text-white transition">Analyze Website</button>
             <a href="#pricing" className="hover:text-white transition">Pricing</a>
           </div>

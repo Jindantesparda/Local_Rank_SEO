@@ -25,7 +25,6 @@ interface NavbarProps {
   onSelectBusiness: (businessId: string) => void;
   onAddNewBusiness: () => void;
   onOpenAuditModal: () => void;
-  onLoadDemo: () => void;
   onOpenAuth: () => void;
   onGoHome: () => void;
   onLogout: () => void;
@@ -41,7 +40,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectBusiness,
   onAddNewBusiness,
   onOpenAuditModal,
-  onLoadDemo,
   onOpenAuth,
   onGoHome,
   onLogout,
@@ -191,25 +189,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </>
           ) : (
-            <>
-              <button
-                onClick={onLoadDemo}
-                className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white/80 hover:bg-white border border-slate-200/80 px-3.5 py-1.5 rounded-full shadow-2xs transition cursor-pointer"
-                id="btn-nav-demo"
-              >
-                <Play className="w-3.5 h-3.5 text-sky-500" />
-                <span>Try Demo</span>
-              </button>
-
-              <button
-                onClick={onOpenAuditModal}
-                className="inline-flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white px-4 py-1.5 rounded-full shadow-xs transition cursor-pointer"
-                id="btn-nav-analyze-hero"
-              >
-                <span>Analyze Website</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </>
+            <button
+              onClick={onOpenAuditModal}
+              className="inline-flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white px-4 py-1.5 rounded-full shadow-xs transition cursor-pointer"
+              id="btn-nav-analyze-hero"
+            >
+              <span>Analyze Website</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           )}
 
           {/* User Profile Menu */}

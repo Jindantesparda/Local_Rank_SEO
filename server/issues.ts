@@ -1,6 +1,7 @@
 import { CrawledPage, Business, SeoIssue, IssueCategory, IssueSeverity, DifficultyLevel, ImpactLevel } from '../src/types';
 import { CrawlResult } from './crawler';
 import { ScoreBreakdown } from './scoring';
+import { guessCountryCode } from './country';
 
 export function generateIssues(
   crawlData: CrawlResult,
@@ -361,18 +362,22 @@ export function generateIssues(
   // LocalBusiness Schema
   const hasSchema = pages.some(p => p.hasStructuredData);
   if (!hasSchema) {
+    const countryCode = guessCountryCode(business.location);
+    const address: { '@type': string; addressLocality: string; addressCountry?: string } = {
+      '@type': 'PostalAddress',
+      addressLocality: cleanLoc,
+    };
+    if (countryCode) {
+      address.addressCountry = countryCode;
+    }
+
     const sampleSchema = {
       "@context": "https://schema.org",
       "@type": "LocalBusiness",
       "name": business.name,
       "description": business.description || `${business.category} in ${business.location}`,
       "url": business.website,
-      "telephone": "+263-XXX-XXXXXX",
-      "address": {
-        "@type": "PostalAddress",
-        "addressLocality": cleanLoc,
-        "addressCountry": business.location.includes('Zimbabwe') ? 'ZW' : 'US'
-      }
+      "address": address
     };
 
     addIssue({

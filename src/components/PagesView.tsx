@@ -263,19 +263,22 @@ export const PagesView: React.FC<PagesViewProps> = ({ audit }) => {
               {/* Images with Missing Alt */}
               <div>
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                  Images & Alt Attributes ({selectedPage.imagesCount} total)
+                  Images & Alt Attributes ({selectedPage.images.length} total)
                 </span>
                 <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                  {selectedPage.imagesMissingAlt && selectedPage.imagesMissingAlt.length > 0 ? (
+                  {selectedPage.images.filter((img) => !img.alt.trim()).length > 0 ? (
                     <div className="space-y-1.5">
                       <span className="text-amber-700 font-bold block mb-1">
                         Images missing descriptive alt tags:
                       </span>
-                      {selectedPage.imagesMissingAlt.slice(0, 5).map((img, i) => (
-                        <div key={i} className="font-mono text-[11px] text-slate-600 truncate bg-white p-1.5 rounded-lg border border-slate-200">
-                          {img}
-                        </div>
-                      ))}
+                      {selectedPage.images
+                        .filter((img) => !img.alt.trim())
+                        .slice(0, 5)
+                        .map((img, i) => (
+                          <div key={i} className="font-mono text-[11px] text-slate-600 truncate bg-white p-1.5 rounded-lg border border-slate-200">
+                            {img.src}
+                          </div>
+                        ))}
                     </div>
                   ) : (
                     <span className="text-emerald-700 font-semibold flex items-center gap-1.5">

@@ -38,7 +38,7 @@ export const PageGeneratorModal: React.FC<PageGeneratorModalProps> = ({
   if (!isOpen) return null;
 
   const targetCity = business.location.split(',')[0].trim();
-  const primaryService = business.services?.[0] || 'Rooftop Restaurant & Dining';
+  const primaryService = business.services?.[0] || business.category || 'Your Service';
 
   // Default rich page draft if not provided
   const draft: PageDraft = initialDraft || issue?.pageDraft || {

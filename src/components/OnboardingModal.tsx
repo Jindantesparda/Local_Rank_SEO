@@ -36,7 +36,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const [location, setLocation] = useState('');
   const [category, setCategory] = useState('Restaurant / Cafe');
   const [description, setDescription] = useState('');
-  const [services, setServices] = useState<string[]>(['Dine-in', 'Takeaway', 'Events']);
+  const [services, setServices] = useState<string[]>([]);
   const [newServiceInput, setNewServiceInput] = useState('');
   const [maxPages, setMaxPages] = useState<number>(15);
   const [error, setError] = useState<string | null>(null);
@@ -55,31 +55,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     setServices(services.filter(s => s !== serviceToRemove));
   };
 
-  const handleApplyPreset = (presetType: 'restaurant' | 'dental' | 'plumber') => {
-    if (presetType === 'restaurant') {
-      setName('Manica SkyView');
-      setWebsite('https://manicaskyview.co.zw');
-      setLocation('Harare, Zimbabwe');
-      setCategory('Restaurant / Cafe');
-      setDescription('Rooftop restaurant, cocktail lounge, and boutique accommodation with skyline views of Harare CBD.');
-      setServices(['Rooftop Dining', 'Cocktail Lounge', 'Private Events', 'Boutique Accommodation']);
-    } else if (presetType === 'dental') {
-      setName('Harare Dental Clinic');
-      setWebsite('https://hararedentalclinic.co.zw');
-      setLocation('Harare, Zimbabwe');
-      setCategory('Clinic / Dentist / Doctor');
-      setDescription('Family dental clinic offering teeth whitening, orthodontics, and 24/7 emergency toothache relief in Harare.');
-      setServices(['Family Dentistry', 'Teeth Whitening', 'Root Canal', 'Emergency Dental Care']);
-    } else if (presetType === 'plumber') {
-      setName('Apex Plumbing & Solar');
-      setWebsite('https://apexplumbing.co.zw');
-      setLocation('Harare, Zimbabwe');
-      setCategory('Plumber / Electrician');
-      setDescription('Licensed residential and commercial plumbing, emergency leak detection, drain clearing and solar geyser installations.');
-      setServices(['Emergency Plumbing', 'Solar Geysers', 'Drain Unblocking', 'Bathroom Renovation']);
-    }
-  };
-
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -91,7 +66,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       return;
     }
     if (!location.trim()) {
-      setError('Please enter your city and country (e.g. Harare, Zimbabwe).');
+      setError('Please enter your city and country (e.g. Austin, Texas).');
       return;
     }
     setError(null);
@@ -145,39 +120,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           </button>
         </div>
 
-        {/* Preset Quick Fill */}
-        {step === 1 && (
-          <div className="px-6 py-2.5 bg-indigo-50/50 border-b border-indigo-100 flex items-center justify-between gap-2 text-xs">
-            <span className="text-indigo-900 font-medium flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              Quick fill sample:
-            </span>
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleApplyPreset('restaurant')}
-                className="px-2 py-0.5 rounded bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-medium transition"
-              >
-                Restaurant
-              </button>
-              <button
-                type="button"
-                onClick={() => handleApplyPreset('dental')}
-                className="px-2 py-0.5 rounded bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-medium transition"
-              >
-                Clinic
-              </button>
-              <button
-                type="button"
-                onClick={() => handleApplyPreset('plumber')}
-                className="px-2 py-0.5 rounded bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-medium transition"
-              >
-                Plumber
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Modal Body */}
         <div className="p-6">
           {error && (
@@ -198,7 +140,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Manica SkyView or Apex Plumbing"
+                    placeholder="e.g. The Corner Bistro"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent text-slate-900"
@@ -237,7 +179,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Harare, Zimbabwe"
+                    placeholder="e.g. Austin, Texas"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent text-slate-900"
@@ -293,7 +235,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="e.g. Rooftop restaurant and boutique accommodation in Harare CBD"
+                  placeholder="e.g. Rooftop restaurant and boutique accommodation in the city center"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 text-slate-900"
