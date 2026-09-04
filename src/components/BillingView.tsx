@@ -40,8 +40,8 @@ const PLANS: Array<{
     phase: 'Improve',
     tagline: 'Ongoing visibility management',
     price: '$19',
-    blurb: 'Cancel anytime',
-    cta: 'Start Pro',
+    blurb: 'Demo — no payment processed yet',
+    cta: 'Select Pro',
     featured: true,
     features: [
       'Full SEO audit',
@@ -56,8 +56,8 @@ const PLANS: Array<{
     phase: 'Scale',
     tagline: 'Manage local SEO for every client',
     price: '$79',
-    blurb: 'For agencies & local teams',
-    cta: 'For Agencies',
+    blurb: 'Demo — no payment processed yet',
+    cta: 'Select Agency',
     features: [
       'Up to 10 businesses',
       'Progress monitoring',
@@ -71,7 +71,9 @@ export const BillingView: React.FC<BillingViewProps> = ({ currentTier, onSelectT
 
   const handlePlanChange = (tier: SubscriptionTier) => {
     onSelectTier(tier);
-    setSuccessMsg(`Successfully updated your subscription to the ${tier.toUpperCase()} plan!`);
+    setSuccessMsg(
+      `Plan switched to ${tier.toUpperCase()} (demo — no payment was processed).`
+    );
     setTimeout(() => setSuccessMsg(null), 3500);
   };
 
@@ -91,6 +93,11 @@ export const BillingView: React.FC<BillingViewProps> = ({ currentTier, onSelectT
           <span>{successMsg}</span>
         </div>
       )}
+
+      <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 font-medium">
+        Payments are not enabled yet. Selecting a paid plan switches your plan for testing,
+        but no card is collected and no money is charged.
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
         {PLANS.map((plan) => {

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { User, SubscriptionTier } from '../src/types';
+import { removeWorkspace } from './workspaceStore';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -62,7 +63,7 @@ function createSession(userId: string): string {
   return token;
 }
 
-function getSessionUser(req: {
+export function getSessionUser(req: {
   headers: Record<string, string | string[] | undefined>;
 }): User | null {
   const authHeader = req.headers['authorization'];
@@ -302,6 +303,7 @@ export function createAuthRouter(): Router {
         SESSIONS_FILE,
         sessions.filter((s) => s.userId !== sessionUser.id)
       );
+      removeWorkspace(sessionUser.id);
       return res.json({ ok: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete account';

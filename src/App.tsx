@@ -31,32 +31,63 @@ import { PLAN_CONFIGS, canUserRunAudit, canUserAddBusiness } from './config/plan
 type ActiveView = 'landing' | 'dashboard' | 'audit' | 'recommendations' | 'pages' | 'settings' | 'billing';
 
 const TOKEN_KEY = 'localrank_token';
-const bizKey = (userId: string) => `localrank_biz_${userId}`;
-const auditsKey = (userId: string) => `localrank_audits_${userId}`;
-const activeBizKey = (userId: string) => `localrank_active_biz_${userId}`;
 
-function readStored<T>(key: string, fallback: T): T {
+function getStoredToken(): string | null {
   try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    return localStorage.getItem(TOKEN_KEY);
   } catch {
-    return fallback;
+    return null;
   }
 }
 
-function writeStored(key: string, value: unknown) {
+function storeToken(token: string) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(TOKEN_KEY, token);
   } catch (e) {
-    console.warn('Failed to persist state', e);
+    console.warn('Failed to store session token', e);
   }
 }
 
-function removeStored(key: string) {
+function clearStoredToken() {
   try {
-    localStorage.removeItem(key);
+    localStorage.removeItem(TOKEN_KEY);
   } catch (e) {
     console.warn(e);
+  }
+}
+
+interface WorkspacePayload {
+  businesses: Business[];
+  audits: AuditResult[];
+  activeBusinessId: string;
+}
+
+async function fetchWorkspace(token: string): Promise<WorkspacePayload> {
+  const res = await fetch('/api/workspace', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error('Failed to load workspace');
+  }
+  const data = await res.json();
+  return data.workspace || { businesses: [], audits: [], activeBusinessId: '' };
+}
+
+async function saveWorkspaceToServer(
+  token: string,
+  workspace: WorkspacePayload
+): Promise<void> {
+  try {
+    await fetch('/api/workspace', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(workspace),
+    });
+  } catch (err) {
+    console.warn('Workspace sync failed:', err);
   }
 }
 
@@ -105,7 +136,7 @@ export default function App() {
   const [auditComplete, setAuditComplete] = useState(false);
   const [pendingGuestAudit, setPendingGuestAudit] = useState<AuditResult | null>(null);
 
-  // Restore an existing server session on mount, then load that user's saved data
+  // Restore an existing server session on mount, then load the user's workspace
   useEffect(() => {
     let cancelled = false;
 
@@ -119,7 +150,7 @@ export default function App() {
       console.warn(e);
     }
 
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = getStoredToken();
     if (!token) return;
 
     (async () => {
@@ -128,23 +159,22 @@ export default function App() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {
-          removeStored(TOKEN_KEY);
+          clearStoredToken();
           return;
         }
         const data = await res.json();
         if (cancelled || !data.user) return;
 
-        const uid: string = data.user.id;
-        const savedBiz = readStored<Business[]>(bizKey(uid), []);
-        const savedAudits = readStored<AuditResult[]>(auditsKey(uid), []);
-        const savedActive = readStored<string>(activeBizKey(uid), '');
+        const workspace = await fetchWorkspace(token);
 
         setAuthToken(token);
         setCurrentUser(data.user);
-        setBusinesses(savedBiz);
-        setAudits(savedAudits);
-        setActiveBusinessId(savedActive || savedBiz[0]?.id || '');
-        setActiveView(savedBiz.length > 0 ? 'dashboard' : 'landing');
+        setBusinesses(workspace.businesses);
+        setAudits(workspace.audits);
+        setActiveBusinessId(
+          workspace.activeBusinessId || workspace.businesses[0]?.id || ''
+        );
+        setActiveView(workspace.businesses.length > 0 ? 'dashboard' : 'landing');
       } catch (err) {
         console.warn('Session restore failed:', err);
       }
@@ -155,16 +185,18 @@ export default function App() {
     };
   }, []);
 
-  // Persist per-user workspace data to localStorage
-  const persistUserState = (
-    userId: string,
+  // Persist the full workspace to the server (businesses + audits + active business)
+  const persistWorkspace = (
     bizList: Business[],
     auditList: AuditResult[],
     actBizId: string
   ) => {
-    writeStored(bizKey(userId), bizList);
-    writeStored(auditsKey(userId), auditList);
-    writeStored(activeBizKey(userId), actBizId);
+    if (!authToken) return;
+    saveWorkspaceToServer(authToken, {
+      businesses: bizList,
+      audits: auditList,
+      activeBusinessId: actBizId,
+    });
   };
 
   // Keep the server-side user record in sync (fire-and-forget)
@@ -207,9 +239,7 @@ export default function App() {
   // Business Switcher handler
   const handleSelectBusiness = (businessId: string) => {
     setActiveBusinessId(businessId);
-    if (currentUser) {
-      persistUserState(currentUser.id, businesses, audits, businessId);
-    }
+    persistWorkspace(businesses, audits, businessId);
   };
 
   // Add new business handler with plan check
@@ -332,7 +362,7 @@ export default function App() {
       setAudits(updatedAudits);
       setActiveBusinessId(bizWithUser.id);
       setCurrentUser(updatedUser);
-      persistUserState(uid, updatedBizList, updatedAudits, bizWithUser.id);
+      persistWorkspace(updatedBizList, updatedAudits, bizWithUser.id);
       syncUserToServer(updatedUser);
 
       setAuditComplete(true);
@@ -349,18 +379,31 @@ export default function App() {
   };
 
   // User auth handlers
-  const handleUserLogin = (user: User, token?: string) => {
+  const handleUserLogin = async (user: User, token?: string) => {
     const uid = user.id;
 
+    const activeToken = token || getStoredToken();
     if (token) {
-      localStorage.setItem(TOKEN_KEY, token);
+      storeToken(token);
       setAuthToken(token);
+    } else if (activeToken) {
+      setAuthToken(activeToken);
     }
 
-    // Load any workspace data previously saved for this account
-    const savedBiz = readStored<Business[]>(bizKey(uid), []);
-    const savedAudits = readStored<AuditResult[]>(auditsKey(uid), []);
-    const savedActive = readStored<string>(activeBizKey(uid), '');
+    // Load the workspace from the server so it follows the account across devices
+    let savedBiz: Business[] = [];
+    let savedAudits: AuditResult[] = [];
+    let savedActive = '';
+    if (activeToken) {
+      try {
+        const workspace = await fetchWorkspace(activeToken);
+        savedBiz = workspace.businesses;
+        savedAudits = workspace.audits;
+        savedActive = workspace.activeBusinessId;
+      } catch (err) {
+        console.warn('Workspace load failed:', err);
+      }
+    }
 
     let nextBiz = savedBiz;
     let nextAudits = savedAudits;
@@ -393,8 +436,16 @@ export default function App() {
     setActiveBusinessId(nextActive || nextBiz[0]?.id || '');
     setCurrentUser(nextUser);
     setActiveView(nextBiz.length > 0 ? 'dashboard' : 'landing');
-    persistUserState(uid, nextBiz, nextAudits, nextActive || nextBiz[0]?.id || '');
-    syncUserToServer(nextUser, token);
+
+    const finalActive = nextActive || nextBiz[0]?.id || '';
+    if (activeToken) {
+      saveWorkspaceToServer(activeToken, {
+        businesses: nextBiz,
+        audits: nextAudits,
+        activeBusinessId: finalActive,
+      });
+    }
+    syncUserToServer(nextUser, activeToken || token);
   };
 
   const handleUserLogout = async () => {
@@ -409,7 +460,7 @@ export default function App() {
       }
     }
 
-    removeStored(TOKEN_KEY);
+    clearStoredToken();
     setAuthToken(null);
     setCurrentUser(null);
     setBusinesses([]);
@@ -422,8 +473,6 @@ export default function App() {
   };
 
   const handleDeleteAccount = async () => {
-    const uid = currentUser?.id;
-
     if (authToken) {
       try {
         await fetch('/api/auth/account', {
@@ -435,12 +484,7 @@ export default function App() {
       }
     }
 
-    removeStored(TOKEN_KEY);
-    if (uid) {
-      removeStored(bizKey(uid));
-      removeStored(auditsKey(uid));
-      removeStored(activeBizKey(uid));
-    }
+    clearStoredToken();
     setAuthToken(null);
     setCurrentUser(null);
     setBusinesses([]);
@@ -459,17 +503,13 @@ export default function App() {
     );
     setBusinesses(updatedBizList);
     setAudits(updatedAudits);
-    if (currentUser) {
-      persistUserState(currentUser.id, updatedBizList, updatedAudits, activeBusinessId);
-    }
+    persistWorkspace(updatedBizList, updatedAudits, activeBusinessId);
   };
 
   const handleUpdateUser = (updated: User) => {
     setCurrentUser(updated);
     syncUserToServer(updated);
-    if (currentUser) {
-      persistUserState(currentUser.id, businesses, audits, activeBusinessId);
-    }
+    persistWorkspace(businesses, audits, activeBusinessId);
   };
 
   const handleChangePassword = async (currentPassword: string, newPassword: string) => {
@@ -506,7 +546,7 @@ export default function App() {
     };
     setCurrentUser(updated);
     syncUserToServer(updated);
-    persistUserState(currentUser.id, businesses, audits, activeBusinessId);
+    persistWorkspace(businesses, audits, activeBusinessId);
   };
 
   return (

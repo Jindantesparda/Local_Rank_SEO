@@ -6,6 +6,7 @@ import { calculateSeoScore } from './server/scoring';
 import { generateIssues } from './server/issues';
 import { generateAiRecommendations, generateCustomFix, generateCopilotResponse } from './server/ai';
 import { createAuthRouter } from './server/auth';
+import { createWorkspaceRouter } from './server/workspace';
 import { AuditResult, Business } from './src/types';
 
 async function startServer() {
@@ -21,6 +22,9 @@ async function startServer() {
 
   // Auth & user account routes
   app.use('/api/auth', createAuthRouter());
+
+  // Per-user workspace (businesses + audits) syncs across devices
+  app.use('/api/workspace', createWorkspaceRouter());
 
   // Real AI SEO Copilot
   app.post('/api/ai/copilot', async (req, res) => {
