@@ -139,12 +139,19 @@ export interface AuditResult {
 
 export type SubscriptionTier = 'free' | 'pro' | 'agency';
 export type SubscriptionStatus = 'active' | 'trialing' | 'canceled' | 'past_due';
+export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded';
+export type PaymentMethod = 'ecocash' | 'onemoney' | 'card';
 
 export interface UserSubscription {
   plan: SubscriptionTier;
   status: SubscriptionStatus;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
   expiresAt?: string;
   providerCustomerId?: string;
+  providerSubscriptionId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface UserUsage {
@@ -164,4 +171,36 @@ export interface User {
   usage: UserUsage;
   businessIds: string[];
   createdAt?: string;
+}
+
+// Payment-related types
+export interface Payment {
+  id: string;
+  userId: string;
+  subscriptionId?: string;
+  provider: string; // e.g., 'paynow'
+  providerReference: string; // Merchant reference sent to the provider
+  providerTransactionId?: string; // Provider's own transaction reference
+  plan?: SubscriptionTier; // Which plan was purchased
+  pollUrl?: string; // Paynow poll URL used to verify the transaction
+  amount: number; // In cents
+  currency: string;
+  paymentMethod: PaymentMethod;
+  status: PaymentStatus;
+  createdAt: string;
+  updatedAt: string;
+  webhookReceivedAt?: string;
+}
+
+export interface Subscription {
+  id: string;
+  userId: string;
+  plan: SubscriptionTier;
+  status: SubscriptionStatus;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  providerCustomerId?: string;
+  providerSubscriptionId?: string;
+  createdAt: string;
+  updatedAt: string;
 }

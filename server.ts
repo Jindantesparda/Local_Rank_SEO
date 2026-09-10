@@ -8,12 +8,16 @@ import { generateAiRecommendations, generateCustomFix, generateCopilotResponse }
 import { createAuthRouter } from './server/auth';
 import { createWorkspaceRouter } from './server/workspace';
 import { AuditResult, Business } from './src/types';
+import { createBillingRouter } from './server/billing';
+import { checkAuditLimit } from './server/planEnforcement';
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json({ limit: '2mb' }));
+  // Paynow's webhook posts form-urlencoded data
+  app.use(express.urlencoded({ extended: false }));
 
   // API Routes
   app.get('/api/health', (req, res) => {
@@ -22,6 +26,9 @@ async function startServer() {
 
   // Auth & user account routes
   app.use('/api/auth', createAuthRouter());
+
+  // Billing & subscription routes
+  app.use('/api/billing', createBillingRouter());
 
   // Per-user workspace (businesses + audits) syncs across devices
   app.use('/api/workspace', createWorkspaceRouter());
@@ -42,7 +49,7 @@ async function startServer() {
   });
 
   // Start Real Audit
-  app.post('/api/audit', async (req, res) => {
+  app.post('/api/audit', checkAuditLimit, async (req, res) => {
     try {
       const { business, maxPages = 15 } = req.body as { business: Business; maxPages?: number };
 

@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { User, SubscriptionTier } from '../src/types';
 import { removeWorkspace } from './workspaceStore';
+import { createSubscription } from './paymentStore';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -52,6 +53,23 @@ function verifyPassword(password: string, salt: string, expectedHash: string): b
 function toPublicUser(record: UserRecord): User {
   const { passwordSalt: _salt, passwordHash: _hash, ...user } = record;
   return user;
+}
+
+// Activate a subscription plan on a user record. Called only after a
+// payment has been verified (Paynow webhook/poll or demo confirmation).
+export function updateUserSubscription(userId: string, plan: SubscriptionTier): User | null {
+  const users = readJson<UserRecord[]>(USERS_FILE, []);
+  const record = users.find((u) => u.id === userId);
+  if (!record) return null;
+
+  record.subscription = {
+    ...record.subscription,
+    plan,
+    status: 'active',
+  };
+  record.subscriptionTier = plan;
+  writeJson(USERS_FILE, users);
+  return toPublicUser(record);
 }
 
 function createSession(userId: string): string {
@@ -120,6 +138,8 @@ export function createAuthRouter(): Router {
       }
 
       const salt = crypto.randomBytes(16).toString('hex');
+      const now = new Date().toISOString();
+      
       const record: UserRecord = {
         id: `usr_${crypto.randomBytes(8).toString('hex')}`,
         name: cleanName,
@@ -128,6 +148,10 @@ export function createAuthRouter(): Router {
         subscription: {
           plan: 'free',
           status: 'active',
+          currentPeriodStart: now,
+          currentPeriodEnd: undefined,
+          createdAt: now,
+          updatedAt: now,
         },
         subscriptionTier: 'free',
         usage: {
@@ -136,13 +160,20 @@ export function createAuthRouter(): Router {
           aiRequests: 0,
         },
         businessIds: [],
-        createdAt: new Date().toISOString(),
+        createdAt: now,
         passwordSalt: salt,
         passwordHash: hashPassword(password, salt),
       };
 
       users.push(record);
       writeJson(USERS_FILE, users);
+      
+      // Create free subscription record
+      try {
+        createSubscription(record.id, 'free', 0);
+      } catch (err) {
+        console.warn('Failed to create free subscription record:', err);
+      }
 
       const token = createSession(record.id);
       return res.status(201).json({ user: toPublicUser(record), token });
