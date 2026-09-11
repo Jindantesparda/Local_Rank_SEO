@@ -14,7 +14,8 @@ import {
   FileCode,
   Copy,
   Check,
-  Sparkles
+  Sparkles,
+  Users
 } from 'lucide-react';
 import { AuditResult, SeoIssue } from '../types';
 import { Lock } from 'lucide-react';
@@ -118,8 +119,13 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
     { id: 'content', label: 'Content Depth', count: issues.filter(i => i.category === 'content').length },
   ];
 
-  const visibleIssues = userTier === 'free' ? filteredIssues.slice(0, 5) : filteredIssues;
-  const lockedCount = userTier === 'free' ? Math.max(0, filteredIssues.length - 5) : 0;
+  // Free is a diagnosis: the score plus the top 3 problems.
+  // Growth unlocks the full actionable audit.
+  const FREE_ISSUE_LIMIT = 3;
+  const visibleIssues =
+    userTier === 'free' ? filteredIssues.slice(0, FREE_ISSUE_LIMIT) : filteredIssues;
+  const lockedCount =
+    userTier === 'free' ? Math.max(0, filteredIssues.length - FREE_ISSUE_LIMIT) : 0;
 
   return (
     <div className="space-y-6">
@@ -267,7 +273,7 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Can LocalRank help me fix it? */}
+                    {/* Can Search Vailable help me fix it? */}
                     {issue.suggestedFix && (
                       <div className="p-4 bg-white rounded-xl border border-indigo-200 shadow-sm">
                         <div className="flex items-center justify-between mb-2">
@@ -329,6 +335,91 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
           })
         )}
 
+        {/* Inferred drop-off analysis — page signals only, never behavioural data */}
+        {audit.dropOffAnalysis && (
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-lilac-100 text-brand-700 grid place-items-center shrink-0">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Why visitors are likely leaving
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{audit.dropOffAnalysis.summary}</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                Inferred · not measured
+              </span>
+            </div>
+
+            <p className="mt-3 text-[11px] text-slate-500 bg-lilac-50 border border-slate-200 rounded-xl p-3 leading-relaxed">
+              {audit.dropOffAnalysis.note}
+            </p>
+
+            {audit.dropOffAnalysis.signals.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {audit.dropOffAnalysis.signals.map((signal) => {
+                  const tone =
+                    signal.likelihood === 'high'
+                      ? { dot: 'bg-rose-500', badge: 'bg-rose-50 text-rose-700 border-rose-200' }
+                      : signal.likelihood === 'medium'
+                        ? { dot: 'bg-amber-500', badge: 'bg-amber-50 text-amber-700 border-amber-200' }
+                        : { dot: 'bg-sky-400', badge: 'bg-lilac-100 text-slate-600 border-slate-200' };
+
+                  return (
+                    <div
+                      key={signal.id}
+                      className="p-4 rounded-xl border border-slate-200 bg-white"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${tone.dot}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm font-bold text-slate-900">{signal.title}</h4>
+                            <span
+                              className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${tone.badge}`}
+                            >
+                              {signal.likelihood} likelihood
+                            </span>
+                          </div>
+
+                          <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                            <strong className="text-slate-800">What we measured: </strong>
+                            {signal.evidence}
+                          </p>
+                          <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                            <strong className="text-slate-800">Why it loses visitors: </strong>
+                            {signal.whyItMatters}
+                          </p>
+                          <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                            <strong className="text-slate-800">What to do: </strong>
+                            {signal.suggestedAction}
+                          </p>
+                          <p className="mt-2 text-[10px] text-slate-400">
+                            Based on: {signal.basedOn}
+                            {signal.affectedPages.length > 0 && (
+                              <>
+                                {' '}
+                                · {signal.affectedPages.slice(0, 3).join(', ')}
+                                {signal.affectedPages.length > 3
+                                  ? ` +${signal.affectedPages.length - 3} more`
+                                  : ''}
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Upgrade Trigger Banner for Remaining Issues on Free Plan */}
         {userTier === 'free' && lockedCount > 0 && (
           <div className="p-6 rounded-2xl bg-slate-900 text-white border border-slate-800 shadow-md">
@@ -346,21 +437,21 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
                   The recurring value isn't the initial audit. It's ongoing monitoring.
                 </p>
                 <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-indigo-200 pt-1">
-                  <span className="font-semibold text-white">Starter unlocks:</span>
+                  <span className="font-semibold text-white">Growth unlocks:</span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Full audit
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Full SEO audit
                   </span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Audit history
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Local SEO analysis
                   </span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Weekly monitoring
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Progress tracking
                   </span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Full recommendations
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Re-audits
                   </span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Deeper crawling
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Competitor comparison
                   </span>
                 </div>
               </div>
@@ -371,7 +462,7 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
                   className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-sm whitespace-nowrap transition cursor-pointer text-center shrink-0"
                   id="btn-audit-locked-upgrade"
                 >
-                  Start Monitoring — $19/mo →
+                  Upgrade to Growth — $19/mo →
                 </button>
               )}
             </div>

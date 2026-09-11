@@ -35,6 +35,14 @@ export interface CrawledPage {
   structuredDataTypes: string[];
   hasClickToCall?: boolean;
   loadTimeMs?: number;
+  /** Size of the HTML response only (excludes images, CSS and scripts). */
+  htmlBytes?: number;
+  /** Number of <script> tags in the page HTML. */
+  scriptCount?: number;
+  /** Number of <form> elements in the page HTML. */
+  formCount?: number;
+  /** True when a `width=device-width` viewport meta tag was found. */
+  hasViewport?: boolean;
   issueCount?: number;
 }
 
@@ -108,6 +116,37 @@ export interface AiRecommendation {
   recommendedValue?: string;
 }
 
+/**
+ * A likely reason visitors leave a page.
+ *
+ * These are INFERRED from the page's own HTML (speed, mobile-readiness,
+ * contact friction, content depth). They are NOT measured visitor behaviour —
+ * no analytics, bounce rate or session data is used. Always present them to
+ * clients as "likely", never as measured fact.
+ */
+export interface DropOffSignal {
+  id: string;
+  title: string;
+  /** How likely this is to be costing the business visitors. */
+  likelihood: 'high' | 'medium' | 'low';
+  /** The measured fact this inference is based on. */
+  evidence: string;
+  whyItMatters: string;
+  suggestedAction: string;
+  affectedPages: string[];
+  /** Plain-English label for the underlying measurement. */
+  basedOn: string;
+}
+
+export interface DropOffAnalysis {
+  signals: DropOffSignal[];
+  /** Short human summary, e.g. "4 likely causes found". */
+  summary: string;
+  /** Always true — the UI uses this to show the "inferred, not measured" note. */
+  inferred: true;
+  note: string;
+}
+
 export interface AuditResult {
   id: string;
   businessId: string;
@@ -127,6 +166,7 @@ export interface AuditResult {
   issues: SeoIssue[];
   topPriorities: SeoIssue[];
   aiRecommendations: AiRecommendation[];
+  dropOffAnalysis?: DropOffAnalysis;
   isDemo?: boolean;
   siteWideChecks?: {
     https: boolean;
@@ -203,4 +243,47 @@ export interface Subscription {
   providerSubscriptionId?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// Competitor comparison
+export interface CompetitorResult {
+  url: string;
+  domain: string;
+  name: string;
+  overallScore: number;
+  technicalScore: number;
+  onpageScore: number;
+  localScore: number;
+  contentScore: number;
+  https: boolean;
+  hasLocalSchema: boolean;
+  pagesAnalyzed: number;
+  status: 'ok' | 'error';
+  error?: string;
+  analyzedAt: string;
+}
+
+export interface CompetitorRecord {
+  urls: string[];
+  results: CompetitorResult[];
+  updatedAt: string;
+}
+
+// Search visibility ("who is showing up above you")
+export interface SerpResult {
+  position: number;
+  title: string;
+  url: string;
+  domain: string;
+  isYou: boolean;
+}
+
+export interface SerpResponse {
+  configured: boolean;
+  query: string;
+  results: SerpResult[];
+  yourDomain: string;
+  yourPosition: number | null;
+  aboveYou: number;
+  message?: string;
 }

@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { AuditResult, Business } from '../src/types';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+// DATA_DIR can be pointed at a mounted persistent disk in production.
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const WORKSPACES_FILE = path.join(DATA_DIR, 'workspaces.json');
 
 export interface WorkspaceRecord {

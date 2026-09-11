@@ -169,8 +169,8 @@ export function generateIssues(
   // ----------------------------------------------------
   // Homepage Title
   const homeTitle = homepage.title || '';
-  const cleanLoc = business.location.split(',')[0].trim();
-  const primaryService = business.services?.[0] || business.category;
+  const cleanLoc = (business.location || '').split(',')[0].trim();
+  const primaryService = business.services?.[0] || business.category || 'local business';
 
   if (!homeTitle) {
     addIssue({

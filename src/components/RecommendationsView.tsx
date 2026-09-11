@@ -236,7 +236,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-                        Recommended LocalRank Replacement:
+                        Recommended Search Vailable Replacement:
                       </span>
                       {fix.targetElement && (
                         <span className="text-[10px] text-slate-400 font-mono">

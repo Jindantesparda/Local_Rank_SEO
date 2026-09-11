@@ -1,5 +1,5 @@
 /**
- * Centralized plan configuration for LocalRank AI
+ * Centralized plan configuration for Search Vailable
  * Single source of truth for pricing, features, and limits
  */
 
@@ -44,8 +44,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
       'SEO score',
       'Top 3 issues',
       'Basic recommendations',
-      'Local search visibility overview',
-      'No credit card required',
+      'Local search overview',
     ],
     limits: {
       websitesMonitored: 0, // No ongoing monitoring
@@ -61,24 +60,20 @@ export const PLANS: Record<PlanId, PlanConfig> = {
 
   pro: {
     id: 'pro',
-    name: 'PRO',
+    name: 'GROWTH',
     positioning: 'IMPROVE',
-    description: 'Improve your search visibility and track your progress.',
+    description: 'Improve your visibility and track your progress.',
     price: 1900, // $19.00 in cents
     currency: 'USD',
     renewalPeriod: 30,
-    cta: 'Start Pro',
+    cta: 'Start Growth',
     badge: 'MOST POPULAR',
     features: [
-      '1 website monitored',
       'Full SEO audit',
       'Local SEO analysis',
-      'AI recommendations',
-      'Weekly monitoring',
       'Progress tracking',
       'Re-audits',
-      'Audit history',
-      'Cancel anytime',
+      'Competitor comparison',
     ],
     limits: {
       websitesMonitored: 1,
@@ -103,13 +98,9 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     cta: 'For Agencies',
     features: [
       'Up to 10 businesses',
-      'Automated monitoring',
       'Progress monitoring',
-      'Full SEO audits',
-      'AI recommendations',
-      'Client management',
-      'Client reports',
-      'Priority support',
+      'Generate reports',
+      'Competitor comparison',
     ],
     limits: {
       websitesMonitored: 10,

@@ -168,7 +168,7 @@ ${draft.schemaMarkup}
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl shadow-2xl border border-white/80 max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden text-left">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden text-left">
         {/* Modal Header */}
         <div className="p-5 sm:p-6 border-b border-slate-100 bg-gradient-to-r from-sky-50/80 via-indigo-50/50 to-white flex items-center justify-between">
           <div className="space-y-1">
@@ -177,7 +177,7 @@ ${draft.schemaMarkup}
                 <Sparkles className="w-4 h-4" />
               </span>
               <span className="text-xs font-bold text-sky-700 uppercase tracking-wider">
-                LocalRank Page Drafter
+                Search Vailable Page Drafter
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
@@ -213,7 +213,7 @@ ${draft.schemaMarkup}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/90 border border-amber-300 text-amber-900 font-semibold">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white border border-amber-300 text-amber-900 font-semibold">
               URL: {draft.suggestedSlug}
             </span>
           </div>

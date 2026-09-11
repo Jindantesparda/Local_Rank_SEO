@@ -1,6 +1,6 @@
 {
-  "name": "LocalRank",
-  "description": "Local SEO platform that analyzes your website and gives you a prioritized action plan to get found when local customers search.",
+  "name": "Search Vailable",
+  "description": "Is your business searchable? Search Vailable analyzes your website and local SEO signals and gives you a prioritized action plan.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

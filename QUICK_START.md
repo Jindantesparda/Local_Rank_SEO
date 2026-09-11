@@ -1,4 +1,4 @@
-# Quick Start — LocalRank
+# Quick Start — Search Vailable
 
 ## 1. Setup
 
@@ -51,7 +51,7 @@ curl -X POST http://localhost:3000/api/billing/checkout \
 # Fire the webhook (use the reference returned by checkout)
 curl -X POST http://localhost:3000/api/billing/webhook \
   -H "Content-Type: application/json" \
-  -d '{"reference":"localrank-...","status":"success","transactionId":"sandbox_test"}'
+  -d '{"reference":"searchvailable-...","status":"success","transactionId":"sandbox_test"}'
 ```
 
 ## 6. Reset everything

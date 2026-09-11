@@ -151,7 +151,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Executive Business & Audit Overview Card (Requirement 7) */}
-      <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 sm:p-7 border border-white/90 shadow-sm text-left">
+      <div className="bg-white backdrop-blur-xl rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm text-left">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-slate-100">
           <div className="space-y-1">
             <span className="text-sm font-semibold text-slate-500">{greetingText}</span>
@@ -380,7 +380,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               {/* Filter Pills: All, Popular, Top */}
-              <div className="flex items-center gap-1.5 p-1 bg-white/70 backdrop-blur-md rounded-full border border-white/90 shadow-xs">
+              <div className="flex items-center gap-1.5 p-1 bg-white backdrop-blur-md rounded-full border border-slate-200 shadow-xs">
                 {(['all', 'popular', 'top'] as const).map((filter) => (
                   <button
                     key={filter}
@@ -402,12 +402,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* Card 1: Technical SEO */}
               <div
                 onClick={() => onNavigateTab('audit')}
-                className={`group relative bg-gradient-to-b from-white/90 via-sky-50/60 to-purple-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
+                className={`group relative bg-gradient-to-b from-white/90 via-sky-50/60 to-purple-50/40 rounded-3xl p-3.5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
                   visiblePillarKeys.has('technical') ? '' : 'hidden'
                 }`}
               >
                 {/* Floating pill badge like 24.06 ETH */}
-                <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white/80 border border-sky-100 shadow-2xs flex items-center gap-1">
+                <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white border border-sky-100 shadow-2xs flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                   <span className="text-[10px] font-bold text-slate-700">{technicalScore}/25 PTS</span>
                 </div>
@@ -415,7 +415,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {/* Soft 3D Pastel Orb */}
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full my-1 p-1 bg-gradient-to-tr from-sky-200 via-blue-100 to-indigo-100 shadow-inner flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform">
                   <div className="absolute inset-0 bg-gradient-to-br from-sky-300/30 via-indigo-200/40 to-pink-200/30 rounded-full blur-xs" />
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/75 backdrop-blur-md flex items-center justify-center shadow-xs">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white backdrop-blur-md flex items-center justify-center shadow-xs">
                     <Shield className="w-7 h-7 text-sky-500" />
                   </div>
                 </div>
@@ -429,18 +429,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* Card 2: On-Page SEO */}
               <div
                 onClick={() => onNavigateTab('audit')}
-                className={`group relative bg-gradient-to-b from-white/90 via-purple-50/60 to-pink-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
+                className={`group relative bg-gradient-to-b from-white/90 via-purple-50/60 to-pink-50/40 rounded-3xl p-3.5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
                   visiblePillarKeys.has('onpage') ? '' : 'hidden'
                 }`}
               >
-                <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white/80 border border-purple-100 shadow-2xs flex items-center gap-1">
+                <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white border border-purple-100 shadow-2xs flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
                   <span className="text-[10px] font-bold text-slate-700">{onpageScore}/30 PTS</span>
                 </div>
 
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full my-1 p-1 bg-gradient-to-tr from-purple-200 via-pink-100 to-sky-100 shadow-inner flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform">
                   <div className="absolute inset-0 bg-gradient-to-br from-purple-300/30 via-pink-200/40 to-sky-200/30 rounded-full blur-xs" />
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/75 backdrop-blur-md flex items-center justify-center shadow-xs">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white backdrop-blur-md flex items-center justify-center shadow-xs">
                     <FileText className="w-7 h-7 text-purple-500" />
                   </div>
                 </div>
@@ -454,18 +454,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* Card 3: Local Signals */}
               <div
                 onClick={() => onNavigateTab('audit')}
-                className={`group relative bg-gradient-to-b from-white/90 via-pink-50/60 to-purple-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
+                className={`group relative bg-gradient-to-b from-white/90 via-pink-50/60 to-purple-50/40 rounded-3xl p-3.5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
                   visiblePillarKeys.has('local') ? '' : 'hidden'
                 }`}
               >
-                <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white/80 border border-pink-100 shadow-2xs flex items-center gap-1">
+                <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white border border-pink-100 shadow-2xs flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-pink-400" />
                   <span className="text-[10px] font-bold text-slate-700">{localScore}/25 PTS</span>
                 </div>
 
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full my-1 p-1 bg-gradient-to-tr from-pink-200 via-purple-100 to-sky-100 shadow-inner flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform">
                   <div className="absolute inset-0 bg-gradient-to-br from-pink-300/30 via-purple-200/40 to-sky-200/30 rounded-full blur-xs" />
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/75 backdrop-blur-md flex items-center justify-center shadow-xs">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white backdrop-blur-md flex items-center justify-center shadow-xs">
                     <TrendingUp className="w-7 h-7 text-pink-500" />
                   </div>
                 </div>
@@ -479,18 +479,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* Card 4: Content Depth */}
               <div
                 onClick={() => onNavigateTab('audit')}
-                className={`group relative bg-gradient-to-b from-white/90 via-sky-50/60 to-teal-50/40 rounded-3xl p-3.5 border border-white/90 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
+                className={`group relative bg-gradient-to-b from-white/90 via-sky-50/60 to-teal-50/40 rounded-3xl p-3.5 border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center ${
                   visiblePillarKeys.has('content') ? '' : 'hidden'
                 }`}
               >
-                <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white/80 border border-teal-100 shadow-2xs flex items-center gap-1">
+                <div className="self-start mb-2 px-2 py-0.5 rounded-full bg-white border border-teal-100 shadow-2xs flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
                   <span className="text-[10px] font-bold text-slate-700">{contentScore}/20 PTS</span>
                 </div>
 
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full my-1 p-1 bg-gradient-to-tr from-teal-200 via-sky-100 to-indigo-100 shadow-inner flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform">
                   <div className="absolute inset-0 bg-gradient-to-br from-teal-300/30 via-sky-200/40 to-indigo-200/30 rounded-full blur-xs" />
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/75 backdrop-blur-md flex items-center justify-center shadow-xs">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white backdrop-blur-md flex items-center justify-center shadow-xs">
                     <Layers className="w-7 h-7 text-teal-600" />
                   </div>
                 </div>
@@ -506,7 +506,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Section 2: Middle Visual Cards (Revenue Statistics & Coverage Concentric Rings) */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
             {/* Chart 1: Revenue statistics style -> "Crawl & Score Trend" (7 cols) */}
-            <div className="md:col-span-7 bg-white/80 backdrop-blur-md rounded-3xl p-5 border border-white/90 shadow-sm flex flex-col justify-between">
+            <div className="md:col-span-7 bg-white backdrop-blur-md rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-bold text-slate-800 tracking-tight">
                   Crawl & Score Trend
@@ -558,7 +558,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {/* Chart 2: "Coverage" Concentric Circular Rings (5 cols) */}
-            <div className="md:col-span-5 bg-white/80 backdrop-blur-md rounded-3xl p-5 border border-white/90 shadow-sm flex flex-col justify-between">
+            <div className="md:col-span-5 bg-white backdrop-blur-md rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-bold text-slate-800 tracking-tight">Coverage</h3>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -626,11 +626,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* Legend with pastel dots */}
               <div className="flex items-center justify-center gap-5 pt-2 text-xs font-semibold text-slate-600">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8]" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-pink-400" />
                   <span>Passed</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#f472b6]" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-pink-500" />
                   <span>Fixes</span>
                 </div>
               </div>
@@ -638,7 +638,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Section 3: Smart Fix Spotlight & Priority Action List */}
-          <div className="bg-white/80 backdrop-blur-md rounded-3xl p-5 border border-white/90 shadow-sm space-y-4">
+          <div className="bg-white backdrop-blur-md rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Priority Action Items</h3>
@@ -730,7 +730,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Right Column: "You balance $4,592.24" style & Copilot (4 cols on xl) */}
         <div className="xl:col-span-4 space-y-5">
           {/* Card 1: Balance Card -> "Overall Health Score" */}
-          <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white/90 shadow-sm space-y-3">
+          <div className="bg-white backdrop-blur-md rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
               <span>Overall SEO Score</span>
               <span className="cursor-pointer hover:text-slate-600">•••</span>
@@ -760,7 +760,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Card 2: "Trending Creator" style -> "High Priority Checks" */}
-          <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white/90 shadow-sm space-y-3">
+          <div className="bg-white backdrop-blur-md rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
             <div className="flex items-center justify-between text-xs font-bold text-slate-800">
               <span>High Priority Checks</span>
               <button
@@ -813,7 +813,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Card 3: SEO Assistant */}
-          <div className="bg-white/85 backdrop-blur-md rounded-3xl p-5 border border-white/90 shadow-sm space-y-3">
+          <div className="bg-white backdrop-blur-md rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
             <div className="flex items-center justify-between text-xs font-bold text-slate-800">
               <div className="flex items-center gap-1.5">
                 <span>SEO Copilot</span>

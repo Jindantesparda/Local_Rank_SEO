@@ -139,14 +139,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-5">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-400 via-indigo-500 to-pink-400 text-white font-bold flex items-center justify-center text-xs shadow-xs">
-              L
-            </div>
+            <img
+              src="/brand/icon-64.png"
+              alt="Search Vailable"
+              width={32}
+              height={32}
+              className="w-8 h-8 object-contain shrink-0"
+            />
             <div>
               <h3 className="font-extrabold text-sm text-slate-900 tracking-tight">
-                {mode === 'welcome' && 'Welcome to LocalRank'}
-                {mode === 'signup' && 'Create LocalRank Account'}
-                {mode === 'login' && 'Sign in to LocalRank'}
+                {mode === 'welcome' && 'Welcome to Search Vailable'}
+                {mode === 'signup' && 'Create Search Vailable Account'}
+                {mode === 'login' && 'Sign in to Search Vailable'}
               </h3>
             </div>
           </div>
@@ -174,7 +178,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
 
             <div className="space-y-1">
-              <h4 className="text-xl font-bold text-slate-900">Welcome to LocalRank</h4>
+              <h4 className="text-xl font-bold text-slate-900">Welcome to Search Vailable</h4>
               <p className="text-xs text-slate-500 max-w-xs mx-auto">
                 Your account is ready. You're signed in as{' '}
                 <strong className="text-slate-800">{signedUpUser?.email}</strong>.

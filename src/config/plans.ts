@@ -21,30 +21,30 @@ export const PLAN_CONFIGS: Record<SubscriptionTier, PlanConfig> = {
     maxBusinesses: 1,
     auditFrequency: 'one_time',
     auditsAllowed: 1,
-    description: 'A single snapshot of your local SEO health.',
+    description: 'See what’s holding your website back.',
     features: [
       '1 website audit',
       'SEO score',
       'Top 3 issues',
       'Basic recommendations',
-      'Local search visibility overview',
+      'Local search overview',
     ],
   },
   pro: {
     id: 'pro',
-    name: 'Pro',
+    name: 'Growth',
     priceMonthly: 19,
     maxPages: 100,
     maxBusinesses: 1,
     auditFrequency: 'weekly',
     auditsAllowed: 12,
-    description: 'Ongoing local visibility management for a growing business.',
+    description: 'Improve your visibility and track your progress.',
     features: [
-      '1 website monitored',
       'Full SEO audit',
       'Local SEO analysis',
       'Progress tracking',
       'Re-audits',
+      'Competitor comparison',
     ],
   },
   agency: {
@@ -55,11 +55,12 @@ export const PLAN_CONFIGS: Record<SubscriptionTier, PlanConfig> = {
     maxBusinesses: 10,
     auditFrequency: 'daily',
     auditsAllowed: 200,
-    description: 'Manage local SEO for every client in one place.',
+    description: 'Manage local SEO for multiple businesses and clients.',
     features: [
       'Up to 10 businesses',
       'Progress monitoring',
       'Generate reports',
+      'Competitor comparison',
     ],
   },
 };
@@ -76,7 +77,7 @@ export function canUserRunAudit(user: {
     if (tier === 'free') {
       return {
         allowed: false,
-        reason: "You've used your free audit. Upgrade to Pro ($19/mo) to keep monitoring this website.",
+        reason: "You've used your free audit. Upgrade to Growth ($19/mo) to run the full audit and keep monitoring this website.",
       };
     }
     return {

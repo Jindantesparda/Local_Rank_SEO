@@ -57,8 +57,10 @@ export function checkAuditLimit(
   next: NextFunction
 ) {
   const user = getSessionUser(req);
+
+  // Guests may run a free preview crawl; the results are held until they sign up.
   if (!user) {
-    return res.status(401).json({ error: 'Authentication required.' });
+    return next();
   }
 
   const plan = getPlan(user.subscription.plan);
@@ -69,7 +71,7 @@ export function checkAuditLimit(
       error: `You have reached your monthly audit limit for the ${plan.name} plan.`,
       limit: plan.limits.monthlyAudits,
       current: auditCount,
-      suggestion: `Upgrade to ${plan.id === 'free' ? 'Pro' : 'Agency'} for more audits.`,
+      suggestion: `Upgrade to ${plan.id === 'free' ? 'Growth' : 'Agency'} for more audits.`,
     });
   }
 
@@ -98,7 +100,7 @@ export function checkBusinessLimit(
       error: `You have reached the business limit for the ${plan.name} plan.`,
       limit: plan.limits.businessesManaged,
       current: businessCount,
-      suggestion: `Upgrade to ${plan.id === 'free' ? 'Pro' : 'Agency'} to manage more businesses.`,
+      suggestion: `Upgrade to ${plan.id === 'free' ? 'Growth' : 'Agency'} to manage more businesses.`,
     });
   }
 

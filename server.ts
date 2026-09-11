@@ -4,16 +4,19 @@ import { createServer as createViteServer } from 'vite';
 import { crawlWebsite } from './server/crawler';
 import { calculateSeoScore } from './server/scoring';
 import { generateIssues } from './server/issues';
+import { generateDropOffAnalysis } from './server/dropoff';
 import { generateAiRecommendations, generateCustomFix, generateCopilotResponse } from './server/ai';
-import { createAuthRouter } from './server/auth';
+import { createAuthRouter, getSessionUser, recordUsage } from './server/auth';
 import { createWorkspaceRouter } from './server/workspace';
+import { createCompetitorsRouter } from './server/competitors';
 import { AuditResult, Business } from './src/types';
 import { createBillingRouter } from './server/billing';
 import { checkAuditLimit } from './server/planEnforcement';
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  // Hosts such as Render/Railway/Fly set PORT. Fall back to 3000 locally.
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '2mb' }));
   // Paynow's webhook posts form-urlencoded data
@@ -32,6 +35,9 @@ async function startServer() {
 
   // Per-user workspace (businesses + audits) syncs across devices
   app.use('/api/workspace', createWorkspaceRouter());
+
+  // Competitor comparison + search visibility
+  app.use('/api/competitors', createCompetitorsRouter());
 
   // Real AI SEO Copilot
   app.post('/api/ai/copilot', async (req, res) => {
@@ -102,6 +108,9 @@ async function startServer() {
         console.warn('AI recommendation generation error:', aiErr);
       }
 
+      // Step 5: Inferred drop-off analysis (page signals only, never faked)
+      const dropOffAnalysis = generateDropOffAnalysis(crawlData, business);
+
       const auditResult: AuditResult = {
         id: `audit-${Date.now()}`,
         businessId: business.id || `biz-${Date.now()}`,
@@ -120,6 +129,7 @@ async function startServer() {
         issues,
         topPriorities,
         aiRecommendations,
+        dropOffAnalysis,
         siteWideChecks: {
           https: crawlData.siteWide.https,
           robotsTxt: crawlData.siteWide.robotsTxt,
@@ -128,6 +138,12 @@ async function startServer() {
         },
         isDemo: false,
       };
+
+      // Count the audit server-side so plan limits are enforced authoritatively.
+      const auditUser = getSessionUser(req);
+      if (auditUser) {
+        recordUsage(auditUser.id, { audits: 1, pages: crawlData.pages.length });
+      }
 
       return res.json({ audit: auditResult });
     } catch (err: unknown) {
@@ -174,7 +190,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`LocalRank server running on http://0.0.0.0:${PORT}`);
+    console.log(`Search Vailable server running on http://0.0.0.0:${PORT}`);
   });
 }
 

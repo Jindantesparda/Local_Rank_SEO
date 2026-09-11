@@ -13,7 +13,8 @@ import {
   PaymentMethod,
 } from '../src/types';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+// DATA_DIR can be pointed at a mounted persistent disk in production.
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const PAYMENTS_FILE = path.join(DATA_DIR, 'payments.json');
 const SUBSCRIPTIONS_FILE = path.join(DATA_DIR, 'subscriptions.json');
 

@@ -192,7 +192,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
 
           {/* User Profile Card */}
-          <div className="bg-white/80 backdrop-blur-md p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
+          <div className="bg-white backdrop-blur-md p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <h3 className="text-base font-bold text-slate-900">User Profile</h3>
@@ -347,7 +347,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           {/* Subscription & Account Usage Box */}
-          <div className="bg-white/80 backdrop-blur-md p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+          <div className="bg-white backdrop-blur-md p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -427,7 +427,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="pt-3 border-t border-rose-200/60 flex flex-wrap items-center justify-between gap-3 text-xs">
               <div>
-                <p className="font-bold text-rose-900">Delete LocalRank Account</p>
+                <p className="font-bold text-rose-900">Delete Search Vailable Account</p>
                 <p className="text-[11px] text-rose-700/80">
                   Permanently delete your account, businesses, and all historical audit logs.
                 </p>
@@ -467,7 +467,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* ===================== TAB 2: BUSINESS PROFILE (Business-level) ===================== */}
       {activeTab === 'business' && (
-        <div className="bg-white/80 backdrop-blur-md p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs">
+        <div className="bg-white backdrop-blur-md p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div>
               <h2 className="text-base font-bold text-slate-900">Business Profile & Audit Configuration</h2>

@@ -5,7 +5,7 @@
  * Paynow provides a single hosted checkout that supports EcoCash, OneMoney
  * and Visa/Mastercard. Flow:
  *
- *   1. LocalRank calls initiateCheckout() -> Paynow returns a browser URL
+ *   1. Search Vailable calls initiateCheckout() -> Paynow returns a browser URL
  *      (customer pays) and a poll URL (server verifies).
  *   2. Customer pays on Paynow's hosted page with the method they choose.
  *   3. Paynow POSTs the result to our webhook (resultUrl).
@@ -132,7 +132,7 @@ export class PaynowGateway {
       method: request.paymentMethod,
     });
 
-    const reference = `localrank-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    const reference = `searchvailable-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 
     // Sandbox mode: no real gateway call. The "checkout page" is simulated
     // in the app and the webhook endpoint accepts simulated confirmations.
@@ -155,7 +155,7 @@ export class PaynowGateway {
       id: this.config.integrationId,
       reference,
       amount: amountDollars,
-      additionalinfo: `LocalRank ${request.planId.toUpperCase()} plan`,
+      additionalinfo: `Search Vailable ${request.planId.toUpperCase()} plan`,
       returnurl: request.returnUrl,
       resulturl: resultUrl,
       status: 'Message',
@@ -214,11 +214,32 @@ export class PaynowGateway {
     this.log('Verifying webhook', { reference: payload.reference, status: payload.status });
 
     if (this.config.mode === 'sandbox') {
-      const status = payload.status === 'failed' ? 'failed' : 'success';
-      this.log('Sandbox webhook accepted', { status });
+      // Sandbox still requires an explicit success status. Anything that is
+      // not a known success (cancelled, declined, expired, pending, ...) must
+      // never activate a subscription.
+      const raw = (payload.status || '').toLowerCase().trim();
+      const successStatuses = ['success', 'paid', 'delivered', 'awaiting delivery'];
+      const failedStatuses = [
+        'failed',
+        'failure',
+        'cancelled',
+        'canceled',
+        'declined',
+        'error',
+        'abandoned',
+        'expired',
+      ];
+
+      const status = successStatuses.includes(raw)
+        ? 'success'
+        : failedStatuses.includes(raw)
+          ? 'failed'
+          : 'pending';
+
+      this.log('Sandbox webhook verified', { incoming: payload.status, status });
       return {
         valid: true,
-        status: payload.status === 'pending' ? 'pending' : status,
+        status,
         providerTransactionId: payload.transactionId,
       };
     }

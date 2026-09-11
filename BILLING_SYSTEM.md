@@ -1,8 +1,8 @@
-# LocalRank AI - Billing & Subscription System
+# Search Vailable - Billing & Subscription System
 
 ## Overview
 
-LocalRank AI includes a complete, production-ready billing and subscription system with three pricing tiers:
+Search Vailable includes a complete, production-ready billing and subscription system with three pricing tiers:
 
 - **FREE** ($0/month) — UNDERSTAND positioning
 - **PRO** ($19/month) — IMPROVE positioning  
@@ -360,7 +360,7 @@ Cancel current subscription and revert to FREE plan.
   "userId": "usr_...",
   "subscriptionId": "sub_...",
   "provider": "paynow",
-  "providerReference": "localrank-...",
+  "providerReference": "searchvailable-...",
   "providerTransactionId": "sandbox_...",
   "plan": "pro",
   "amount": 1900,
@@ -451,4 +451,4 @@ For issues or questions:
 
 ## License & Usage
 
-This billing system is built for LocalRank AI. Do not redistribute or use in other projects without permission.
+This billing system is built for Search Vailable. Do not redistribute or use in other projects without permission.

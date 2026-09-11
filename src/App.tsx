@@ -10,7 +10,8 @@ import {
   Plus,
   ArrowRight,
   ChevronRight,
-  AlertTriangle
+  AlertTriangle,
+  Trophy
 } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { LandingPage } from './components/LandingPage';
@@ -22,15 +23,16 @@ import { RecommendationsView } from './components/RecommendationsView';
 import { PagesView } from './components/PagesView';
 import { SettingsView } from './components/SettingsView';
 import { BillingView } from './components/BillingView';
+import { CompetitorsView } from './components/CompetitorsView';
 import { EditFixModal } from './components/EditFixModal';
 import { PageGeneratorModal } from './components/PageGeneratorModal';
 import { AuthModal } from './components/AuthModal';
 import { AuditHistoryEntry, AuditResult, Business, SeoIssue, User, SubscriptionTier } from './types';
 import { PLAN_CONFIGS, canUserRunAudit, canUserAddBusiness } from './config/plans';
 
-type ActiveView = 'landing' | 'dashboard' | 'audit' | 'recommendations' | 'pages' | 'settings' | 'billing';
+type ActiveView = 'landing' | 'dashboard' | 'audit' | 'recommendations' | 'pages' | 'competitors' | 'settings' | 'billing';
 
-const TOKEN_KEY = 'localrank_token';
+const TOKEN_KEY = 'searchvailable_token';
 
 function getStoredToken(): string | null {
   try {
@@ -142,10 +144,10 @@ export default function App() {
 
     // Clear legacy v2 storage from older builds that shipped hardcoded demo data
     try {
-      localStorage.removeItem('localrank_v2_user');
-      localStorage.removeItem('localrank_v2_businesses');
-      localStorage.removeItem('localrank_v2_audits');
-      localStorage.removeItem('localrank_v2_active_biz');
+      localStorage.removeItem('searchvailable_v2_user');
+      localStorage.removeItem('searchvailable_v2_businesses');
+      localStorage.removeItem('searchvailable_v2_audits');
+      localStorage.removeItem('searchvailable_v2_active_biz');
     } catch (e) {
       console.warn(e);
     }
@@ -618,13 +620,13 @@ export default function App() {
         />
       ) : (
         <div className="flex-1 max-w-[1520px] w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-7">
-          {/* Floating Frosted Glass Canvas Tablet matching reference design */}
-          <div className="glass-canvas rounded-[32px] sm:rounded-[40px] p-4 sm:p-6 lg:p-7 shadow-[0_25px_60px_-15px_rgba(148,163,204,0.28)] flex flex-col lg:flex-row gap-6">
+          {/* Workspace canvas */}
+          <div className="glass-canvas rounded-[24px] sm:rounded-[28px] p-4 sm:p-6 lg:p-7 flex flex-col lg:flex-row gap-6">
             {/* Left Sidebar Navigation */}
             <aside className="w-full lg:w-60 shrink-0 flex flex-col justify-between">
               <div className="space-y-4">
                 {/* Profile Widget with Business Name */}
-                <div className="flex items-center gap-3 p-2 bg-white/60 backdrop-blur-md rounded-2xl border border-white/80 shadow-2xs">
+                <div className="flex items-center gap-3 p-2 bg-white backdrop-blur-md rounded-2xl border border-slate-200 shadow-2xs">
                   <div className="w-10 h-10 rounded-full p-0.5 bg-gradient-to-tr from-pink-400 via-purple-300 to-sky-300 shrink-0 shadow-xs">
                     <div className="w-full h-full rounded-full bg-white flex items-center justify-center font-bold text-xs text-slate-800">
                       {currentAudit.business.name.slice(0, 2).toUpperCase()}
@@ -647,7 +649,7 @@ export default function App() {
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs transition text-left cursor-pointer ${
                       activeView === 'dashboard'
                         ? 'bg-sky-50/90 text-sky-600 font-bold border border-sky-100/90 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 font-medium'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-white font-medium'
                     }`}
                     id="nav-tab-dashboard"
                   >
@@ -660,7 +662,7 @@ export default function App() {
                     className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition text-left cursor-pointer ${
                       activeView === 'audit'
                         ? 'bg-sky-50/90 text-sky-600 font-bold border border-sky-100/90 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 font-medium'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-white font-medium'
                     }`}
                     id="nav-tab-audit"
                   >
@@ -672,7 +674,7 @@ export default function App() {
                       className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                         activeView === 'audit'
                           ? 'bg-sky-500 text-white'
-                          : 'bg-white/80 text-slate-600 border border-slate-200/60'
+                          : 'bg-white text-slate-600 border border-slate-200/60'
                       }`}
                     >
                       {currentAudit.issues.length}
@@ -684,7 +686,7 @@ export default function App() {
                     className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition text-left cursor-pointer ${
                       activeView === 'recommendations'
                         ? 'bg-sky-50/90 text-sky-600 font-bold border border-sky-100/90 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 font-medium'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-white font-medium'
                     }`}
                     id="nav-tab-recommendations"
                   >
@@ -708,7 +710,7 @@ export default function App() {
                     className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition text-left cursor-pointer ${
                       activeView === 'pages'
                         ? 'bg-sky-50/90 text-sky-600 font-bold border border-sky-100/90 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 font-medium'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-white font-medium'
                     }`}
                     id="nav-tab-pages"
                   >
@@ -720,10 +722,34 @@ export default function App() {
                       className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                         activeView === 'pages'
                           ? 'bg-sky-500 text-white'
-                          : 'bg-white/80 text-slate-600 border border-slate-200/60'
+                          : 'bg-white text-slate-600 border border-slate-200/60'
                       }`}
                     >
                       {currentAudit.pages.length}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveView('competitors')}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs transition text-left cursor-pointer ${
+                      activeView === 'competitors'
+                        ? 'bg-sky-50/90 text-sky-600 font-bold border border-sky-100/90 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-white font-medium'
+                    }`}
+                    id="nav-tab-competitors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Trophy className="w-4 h-4" />
+                      <span>Competitors</span>
+                    </div>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        activeView === 'competitors'
+                          ? 'bg-sky-500 text-white'
+                          : 'bg-amber-100/80 text-amber-700'
+                      }`}
+                    >
+                      New
                     </span>
                   </button>
 
@@ -734,7 +760,7 @@ export default function App() {
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs transition text-left cursor-pointer ${
                       activeView === 'settings'
                         ? 'bg-sky-50/90 text-sky-600 font-bold border border-sky-100/90 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 font-medium'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-white font-medium'
                     }`}
                     id="nav-tab-settings"
                   >
@@ -747,7 +773,7 @@ export default function App() {
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs transition text-left cursor-pointer ${
                       activeView === 'billing'
                         ? 'bg-sky-50/90 text-sky-600 font-bold border border-sky-100/90 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 font-medium'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-white font-medium'
                     }`}
                     id="nav-tab-billing"
                   >
@@ -757,10 +783,10 @@ export default function App() {
                 </nav>
               </div>
 
-              {/* Bottom Pro Card */}
+              {/* Bottom Growth Card */}
               <div className="pt-6 space-y-4">
-                <div className="bg-gradient-to-br from-sky-50/90 via-purple-50/70 to-pink-50/60 border border-white/90 rounded-3xl p-3.5 text-center space-y-2 shadow-2xs backdrop-blur-sm">
-                  <div className="w-8 h-8 rounded-full bg-white/90 text-sky-500 mx-auto flex items-center justify-center shadow-2xs">
+                <div className="bg-gradient-to-br from-sky-50/90 via-purple-50/70 to-pink-50/60 border border-slate-200 rounded-3xl p-3.5 text-center space-y-2 shadow-2xs backdrop-blur-sm">
+                  <div className="w-8 h-8 rounded-full bg-white text-sky-500 mx-auto flex items-center justify-center shadow-2xs">
                     <Sparkles className="w-4 h-4" />
                   </div>
                   <div>
@@ -787,6 +813,7 @@ export default function App() {
                     {activeView === 'audit' && 'Full Website Audit'}
                     {activeView === 'recommendations' && 'Prioritized Recommendations'}
                     {activeView === 'pages' && 'Crawled Pages'}
+                    {activeView === 'competitors' && 'Competitor Comparison'}
                     {activeView === 'settings' && 'Settings'}
                     {activeView === 'billing' && 'Plans & Billing'}
                   </h2>
@@ -849,6 +876,17 @@ export default function App() {
 
                 {activeView === 'pages' && <PagesView audit={currentAudit} />}
 
+                {activeView === 'competitors' && (
+                  <CompetitorsView
+                    business={currentAudit.business}
+                    audit={currentAudit}
+                    token={authToken}
+                    userTier={currentUser?.subscriptionTier || currentUser?.subscription?.plan || 'free'}
+                    onNeedBusiness={handleTriggerAuditModal}
+                    onUpgrade={() => setActiveView('billing')}
+                  />
+                )}
+
                 {activeView === 'settings' && (
                   <SettingsView
                     business={currentAudit.business}
@@ -867,6 +905,7 @@ export default function App() {
                   <BillingView
                     currentTier={currentUser?.subscriptionTier || currentUser?.subscription?.plan || 'free'}
                     onSelectTier={handleSelectTier}
+                    token={authToken || undefined}
                   />
                 )}
               </div>

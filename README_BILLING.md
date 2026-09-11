@@ -1,6 +1,6 @@
-# LocalRank — Billing System
+# Search Vailable — Billing System
 
-LocalRank has three pricing tiers and a Paynow payment flow with a verified webhook.
+Search Vailable has three pricing tiers and a Paynow payment flow with a verified webhook.
 
 ## Pricing
 

@@ -5,8 +5,10 @@ import path from 'path';
 import { User, SubscriptionTier } from '../src/types';
 import { removeWorkspace } from './workspaceStore';
 import { createSubscription } from './paymentStore';
+import { removeCompetitorData } from './competitorStore';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+// DATA_DIR can be pointed at a mounted persistent disk in production.
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 
@@ -70,6 +72,23 @@ export function updateUserSubscription(userId: string, plan: SubscriptionTier): 
   record.subscriptionTier = plan;
   writeJson(USERS_FILE, users);
   return toPublicUser(record);
+}
+
+// Record usage server-side so plan limits cannot be bypassed by the client.
+export function recordUsage(
+  userId: string,
+  update: { audits?: number; pages?: number; aiRequests?: number }
+): void {
+  const users = readJson<UserRecord[]>(USERS_FILE, []);
+  const record = users.find((u) => u.id === userId);
+  if (!record) return;
+
+  record.usage = {
+    auditsUsed: (record.usage?.auditsUsed || 0) + (update.audits || 0),
+    pagesCrawled: (record.usage?.pagesCrawled || 0) + (update.pages || 0),
+    aiRequests: (record.usage?.aiRequests || 0) + (update.aiRequests || 0),
+  };
+  writeJson(USERS_FILE, users);
 }
 
 function createSession(userId: string): string {
@@ -254,17 +273,23 @@ export function createAuthRouter(): Router {
       if (typeof patch.emailVerified === 'boolean') {
         record.emailVerified = patch.emailVerified;
       }
+      // Subscription plan/status is server-controlled (Paynow webhook or
+      // billing routes only). Never accept a plan change from the client.
       if (patch.subscription && typeof patch.subscription === 'object') {
-        record.subscription = { ...record.subscription, ...patch.subscription };
+        const { plan: _plan, status: _status, ...safeSubscription } = patch.subscription;
+        record.subscription = { ...record.subscription, ...safeSubscription };
       }
-      if (
-        patch.subscriptionTier &&
-        ['free', 'starter', 'business'].includes(patch.subscriptionTier)
-      ) {
-        record.subscriptionTier = patch.subscriptionTier as SubscriptionTier;
-      }
+      // Usage counters may only move forward, so limits can't be reset.
       if (patch.usage && typeof patch.usage === 'object') {
-        record.usage = { ...record.usage, ...patch.usage };
+        record.usage = {
+          ...record.usage,
+          auditsUsed: Math.max(record.usage.auditsUsed || 0, Number(patch.usage.auditsUsed) || 0),
+          pagesCrawled: Math.max(
+            record.usage.pagesCrawled || 0,
+            Number(patch.usage.pagesCrawled) || 0
+          ),
+          aiRequests: Math.max(record.usage.aiRequests || 0, Number(patch.usage.aiRequests) || 0),
+        };
       }
       if (Array.isArray(patch.businessIds)) {
         record.businessIds = Array.from(new Set(patch.businessIds.map(String)));
@@ -335,6 +360,7 @@ export function createAuthRouter(): Router {
         sessions.filter((s) => s.userId !== sessionUser.id)
       );
       removeWorkspace(sessionUser.id);
+      removeCompetitorData(sessionUser.id);
       return res.json({ ok: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete account';

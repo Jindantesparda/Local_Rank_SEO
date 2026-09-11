@@ -30,7 +30,7 @@ export const ContinuousSeoTracker: React.FC<ContinuousSeoTrackerProps> = ({
   const city = audit.business.location.split(',')[0].trim();
 
   return (
-    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-6 sm:p-7 border border-white/90 shadow-sm text-left space-y-5">
+    <div className="bg-white backdrop-blur-xl rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm text-left space-y-5">
       {/* Header with Continuous Badge & Automated Crawl Indicator */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
         <div className="space-y-1">
@@ -151,14 +151,14 @@ export const ContinuousSeoTracker: React.FC<ContinuousSeoTrackerProps> = ({
                   latest.fixedItems.map((item, idx) => (
                     <div
                       key={idx}
-                      className="p-3 rounded-xl bg-white/90 border border-emerald-100 text-xs text-slate-800 flex items-start gap-2.5 shadow-2xs"
+                      className="p-3 rounded-xl bg-white border border-emerald-100 text-xs text-slate-800 flex items-start gap-2.5 shadow-2xs"
                     >
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                       <span className="font-bold text-slate-900">{item}</span>
                     </div>
                   ))
                 ) : (
-                  <div className="p-3 rounded-xl bg-white/90 border border-emerald-100 text-xs text-slate-600 shadow-2xs">
+                  <div className="p-3 rounded-xl bg-white border border-emerald-100 text-xs text-slate-600 shadow-2xs">
                     No previously open issues were resolved in this crawl. Keep applying the
                     recommended fixes and re-audit.
                   </div>
@@ -186,7 +186,7 @@ export const ContinuousSeoTracker: React.FC<ContinuousSeoTrackerProps> = ({
                   latest.nextPriorities.map((item, idx) => (
                     <div
                       key={idx}
-                      className="p-3 rounded-xl bg-white/90 border border-sky-100 text-xs text-slate-800 flex items-start gap-2.5 shadow-2xs"
+                      className="p-3 rounded-xl bg-white border border-sky-100 text-xs text-slate-800 flex items-start gap-2.5 shadow-2xs"
                     >
                       <span className="w-4 h-4 rounded-full bg-sky-100 text-sky-700 text-[10px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">
                         {idx + 1}
@@ -195,7 +195,7 @@ export const ContinuousSeoTracker: React.FC<ContinuousSeoTrackerProps> = ({
                     </div>
                   ))
                 ) : (
-                  <div className="p-3 rounded-xl bg-white/90 border border-sky-100 text-xs text-slate-600 shadow-2xs">
+                  <div className="p-3 rounded-xl bg-white border border-sky-100 text-xs text-slate-600 shadow-2xs">
                     No open priorities. Great work — keep an eye on new content.
                   </div>
                 )}

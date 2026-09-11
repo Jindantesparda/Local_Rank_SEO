@@ -1,6 +1,6 @@
 # Paynow Integration Guide
 
-LocalRank uses **Paynow** (https://www.paynow.co.zw) as its payment gateway. Paynow provides one hosted checkout that supports:
+Search Vailable uses **Paynow** (https://www.paynow.co.zw) as its payment gateway. Paynow provides one hosted checkout that supports:
 
 - EcoCash
 - OneMoney
@@ -17,22 +17,22 @@ This guide covers how to go from sandbox testing to live payments.
 1. The Billing page calls `POST /api/billing/checkout` with `{ plan, paymentMethod }`.
 2. The server calls Paynow's **RemoteTransaction** endpoint with:
    - `id` — your Integration ID
-   - `reference` — a unique LocalRank merchant reference (`localrank-<timestamp>-<random>`)
+   - `reference` — a unique Search Vailable merchant reference (`searchvailable-<timestamp>-<random>`)
    - `amount` — USD amount, e.g. `19.00` for Pro
    - `returnurl` — `https://your-domain.com/api/billing/payment-return`
    - `resulturl` — `https://your-domain.com/api/billing/webhook`
    - `hash` — `SHA512(id + reference + amount + integrationKey)` uppercase hex
 3. Paynow responds with `browserurl`, `pollurl`, and `paynowreference`.
-4. LocalRank stores a PENDING payment record (including `plan`, `pollUrl`, and Paynow's reference) and redirects the customer to `browserurl`.
+4. Search Vailable stores a PENDING payment record (including `plan`, `pollUrl`, and Paynow's reference) and redirects the customer to `browserurl`.
 
 ### Verification (webhook — the critical part)
 
 1. The customer pays on Paynow's hosted page.
 2. Paynow POSTs the transaction result to the result URL:
    `POST https://your-domain.com/api/billing/webhook`
-3. LocalRank does **not** trust the webhook body. It looks up the payment by reference and then **polls Paynow's `pollurl`**:
+3. Search Vailable does **not** trust the webhook body. It looks up the payment by reference and then **polls Paynow's `pollurl`**:
    - `POST <pollurl>` with `hash = SHA512(pollurl + integrationKey)` uppercase hex
-4. Only if Paynow returns `Paid`, `Delivered`, or `Awaiting Delivery` does LocalRank:
+4. Only if Paynow returns `Paid`, `Delivered`, or `Awaiting Delivery` does Search Vailable:
    - mark the payment PAID
    - create a subscription for the purchased plan
    - activate the plan on the user account
@@ -40,7 +40,7 @@ This guide covers how to go from sandbox testing to live payments.
 
 ### Return (browser)
 
-Paynow redirects the customer's browser to the return URL after payment. LocalRank only redirects them to `/billing`. The return URL never activates anything.
+Paynow redirects the customer's browser to the return URL after payment. Search Vailable only redirects them to `/billing`. The return URL never activates anything.
 
 ---
 

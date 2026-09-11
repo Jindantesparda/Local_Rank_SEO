@@ -262,7 +262,10 @@ export const BillingView: React.FC<BillingViewProps> = ({ currentTier, token }) 
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-indigo-900">
-                    Current Plan: <span className="uppercase">{billingInfo.subscription.plan}</span>
+                    Current Plan:{' '}
+                    <span className="uppercase">
+                      {billingInfo.currentPlan?.name || billingInfo.subscription.plan}
+                    </span>
                   </p>
                   {billingInfo.subscription.activeSubscription?.currentPeriodEnd && (
                     <p className="text-xs text-indigo-700 mt-1">
@@ -445,7 +448,7 @@ export const BillingView: React.FC<BillingViewProps> = ({ currentTier, token }) 
               Simulated Paynow Checkout
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              {demoCheckout.planId.toUpperCase()} plan · $
+              {(plans[demoCheckout.planId]?.name || demoCheckout.planId).toUpperCase()} plan · $
               {(demoCheckout.amount / 100).toFixed(2)} · Reference{' '}
               <span className="font-mono">{demoCheckout.reference}</span>
             </p>

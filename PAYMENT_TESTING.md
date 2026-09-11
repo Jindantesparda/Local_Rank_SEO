@@ -1,8 +1,8 @@
-# LocalRank AI - Payment System Testing & Sandbox Setup
+# Search Vailable - Payment System Testing & Sandbox Setup
 
 ## Overview
 
-The LocalRank AI payment system includes a complete sandbox/test mode for development and testing without processing real payments.
+The Search Vailable payment system includes a complete sandbox/test mode for development and testing without processing real payments.
 
 ## Environment Configuration
 

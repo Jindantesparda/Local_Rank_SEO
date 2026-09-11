@@ -28,7 +28,8 @@ import path from 'path';
 import crypto from 'crypto';
 import { User, SubscriptionTier } from '../src/types';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+// DATA_DIR can be pointed at a mounted persistent disk in production.
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
 interface UserRecord extends User {

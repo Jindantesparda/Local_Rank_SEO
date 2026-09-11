@@ -12,7 +12,8 @@ import {
   Check,
   CreditCard,
   LogOut,
-  Settings
+  Settings,
+  Trophy
 } from 'lucide-react';
 import { AuditResult, User, Business, SubscriptionTier } from '../types';
 import { PLAN_CONFIGS } from '../config/plans';
@@ -70,8 +71,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const planConfig = PLAN_CONFIGS[planKey] || PLAN_CONFIGS.free;
 
   return (
-    <header className="sticky top-0 z-40 bg-white/75 backdrop-blur-xl border-b border-white/80 shadow-[0_4px_20px_rgba(148,163,204,0.06)]">
-      <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <header className="sticky top-0 z-40 px-3 sm:px-6 pt-3 pb-1">
+      <div className="max-w-[1520px] mx-auto h-16 px-4 sm:px-6 bg-white border border-slate-200 rounded-full shadow-sm flex items-center justify-between">
         {/* Left: Logo + Business Switcher Dropdown */}
         <div className="flex items-center gap-4 sm:gap-6">
           <button
@@ -79,12 +80,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
             id="btn-logo-home"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-400 via-indigo-400 to-pink-400 flex items-center justify-center text-white font-bold shadow-xs group-hover:scale-105 transition">
-              L
-            </div>
+            <img
+              src="/brand/icon-64.png"
+              alt="Search Vailable"
+              width={36}
+              height={36}
+              className="w-9 h-9 shrink-0 object-contain group-hover:scale-105 transition"
+            />
             <div>
-              <span className="font-extrabold text-lg tracking-tight text-slate-800">LocalRank</span>
-              <p className="text-[10px] text-slate-400 leading-none">Local SEO Platform</p>
+              <span className="font-extrabold text-lg tracking-tight text-slate-800">Search Vailable</span>
+              <p className="text-[10px] text-slate-400 leading-none">Is your business searchable?</p>
             </div>
           </button>
 
@@ -93,19 +98,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             <nav className="hidden lg:flex items-center gap-1 ml-2">
               <a
                 href="#product"
-                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/70 transition"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white transition"
               >
                 Product
               </a>
               <a
                 href="#how-it-works"
-                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/70 transition"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white transition"
               >
                 How It Works
               </a>
               <a
                 href="#pricing"
-                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/70 transition"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white transition"
               >
                 Pricing
               </a>
@@ -117,7 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative" ref={bizDropdownRef}>
               <button
                 onClick={() => setBizDropdownOpen(!bizDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 hover:bg-white border border-slate-200/80 shadow-2xs transition cursor-pointer text-left"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white hover:bg-white border border-slate-200/80 shadow-2xs transition cursor-pointer text-left"
                 id="btn-biz-switcher"
               >
                 <div className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
@@ -190,12 +195,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveView('dashboard')}
                 className={`text-xs font-bold px-3 py-1.5 rounded-full transition cursor-pointer ${
                   activeView === 'landing'
-                    ? 'text-slate-500 hover:text-slate-800 hover:bg-white/60'
+                    ? 'text-slate-500 hover:text-slate-800 hover:bg-white'
                     : 'bg-sky-50 text-sky-700 font-bold border border-sky-100 shadow-2xs'
                 }`}
                 id="btn-nav-dashboard"
               >
                 Dashboard
+              </button>
+
+              <button
+                onClick={() => setActiveView('competitors')}
+                className={`hidden sm:inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full transition cursor-pointer ${
+                  activeView === 'competitors'
+                    ? 'bg-amber-50 text-amber-700 border border-amber-100 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-white'
+                }`}
+                id="btn-nav-competitors"
+              >
+                <Trophy className="w-3.5 h-3.5" />
+                <span>Competitors</span>
               </button>
 
               <button
@@ -223,7 +241,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 p-1 pl-2 rounded-full hover:bg-white/80 border border-slate-200/60 transition cursor-pointer"
+                className="flex items-center gap-2 p-1 pl-2 rounded-full hover:bg-white border border-slate-200/60 transition cursor-pointer"
                 id="btn-user-avatar-menu"
               >
                 <span className="hidden sm:inline text-xs font-bold text-slate-700 max-w-[100px] truncate">

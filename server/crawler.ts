@@ -71,7 +71,7 @@ async function fetchWithTimeout(url: string, timeoutMs = 10000, retries = 1): Pr
     let res = await fetch(currentUrl, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; LocalRank Bot/1.0)',
+        'User-Agent': 'Mozilla/5.0 (compatible; Search Vailable Bot/1.0)',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate',
@@ -97,7 +97,7 @@ async function fetchWithTimeout(url: string, timeoutMs = 10000, retries = 1): Pr
       res = await fetch(currentUrl, {
         signal: controller.signal,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; LocalRank Bot/1.0)',
+          'User-Agent': 'Mozilla/5.0 (compatible; Search Vailable Bot/1.0)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
           'Accept-Encoding': 'gzip, deflate',
@@ -205,6 +205,10 @@ export async function crawlWebsite(
           structuredDataTypes: [],
           hasClickToCall: false,
           loadTimeMs: timeMs,
+          htmlBytes: 0,
+          scriptCount: 0,
+          formCount: 0,
+          hasViewport: true,
           issueCount: 1,
         });
         continue;
@@ -212,6 +216,15 @@ export async function crawlWebsite(
 
       // Parse HTML with Cheerio
       const $ = cheerio.load(text);
+
+      // Signals used for the inferred "why visitors may leave" analysis.
+      // All measured from the HTML response only — no behavioural data.
+      // (Must be read before scripts/style are stripped below.)
+      const htmlBytes = Buffer.byteLength(text, 'utf8');
+      const scriptCount = $('script').length;
+      const formCount = $('form').length;
+      const viewportContent = $('meta[name="viewport"]').attr('content') || '';
+      const hasViewport = /width\s*=\s*device-width/i.test(viewportContent);
 
       // Remove non-content elements for cleaner text extraction
       $('script, style, noscript, svg, iframe').remove();
@@ -337,6 +350,10 @@ export async function crawlWebsite(
         structuredDataTypes,
         hasClickToCall,
         loadTimeMs: timeMs,
+        htmlBytes,
+        scriptCount,
+        formCount,
+        hasViewport,
       });
     } catch (err: unknown) {
       brokenLinks.push(currentUrl);
@@ -360,6 +377,11 @@ export async function crawlWebsite(
         hasStructuredData: false,
         structuredDataTypes: [],
         hasClickToCall: false,
+        loadTimeMs: 0,
+        htmlBytes: 0,
+        scriptCount: 0,
+        formCount: 0,
+        hasViewport: true,
         issueCount: 1,
       });
     }

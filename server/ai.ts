@@ -34,7 +34,7 @@ export async function generateAiRecommendations(
   if (client) {
     try {
       const prompt = `
-You are LocalRank AI, an expert SEO consultant for local small businesses.
+You are Search Vailable, an expert SEO consultant for local small businesses.
 Analyze the following audited business and its identified SEO issues.
 
 BUSINESS DATA:
@@ -122,8 +122,8 @@ export function generateCustomFix(
   business: Business,
   fixType: 'title' | 'metaDescription' | 'altText' | 'schema'
 ): SuggestedFix {
-  const cleanLoc = business.location.split(',')[0].trim();
-  const primaryService = business.services?.[0] || business.category;
+  const cleanLoc = (business.location || '').split(',')[0].trim();
+  const primaryService = business.services?.[0] || business.category || 'local business';
 
   switch (fixType) {
     case 'title':
@@ -185,7 +185,7 @@ export function generateCustomFix(
 }
 
 function getSchemaType(category: string): string {
-  const cat = category.toLowerCase();
+  const cat = (category || '').toLowerCase();
   if (cat.includes('restaurant') || cat.includes('cafe') || cat.includes('food')) return 'Restaurant';
   if (cat.includes('dentist') || cat.includes('dental')) return 'Dentist';
   if (cat.includes('clinic') || cat.includes('health') || cat.includes('doctor')) return 'MedicalClinic';
@@ -200,8 +200,8 @@ function getSchemaType(category: string): string {
 }
 
 function fallbackRecommendations(issues: SeoIssue[], business: Business): AiRecommendation[] {
-  const cleanLoc = business.location.split(',')[0].trim();
-  const primaryService = business.services?.[0] || business.category;
+  const cleanLoc = (business.location || '').split(',')[0].trim();
+  const primaryService = business.services?.[0] || business.category || 'local business';
 
   return issues.map((issue, idx) => {
     let fixType: AiRecommendation['fixType'] = undefined;
@@ -261,7 +261,7 @@ export async function generateCopilotResponse(
   if (client) {
     try {
       const prompt = `
-You are the LocalRank AI SEO copilot embedded inside a small business SEO audit dashboard.
+You are the Search Vailable SEO copilot embedded inside a small business SEO audit dashboard.
 Answer the business owner's question using ONLY the audit data below. Be concise, practical,
 and never invent crawl metrics that are not present in the audit data.
 
