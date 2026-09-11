@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Sparkles,
   Shield,
   User as UserIcon,
   RefreshCw,
@@ -98,19 +97,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             <nav className="hidden lg:flex items-center gap-1 ml-2">
               <a
                 href="#product"
-                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white transition"
+                className="btn btn-ghost btn-sm"
               >
                 Product
               </a>
               <a
                 href="#how-it-works"
-                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white transition"
+                className="btn btn-ghost btn-sm"
               >
                 How It Works
               </a>
               <a
                 href="#pricing"
-                className="px-3 py-1.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white transition"
+                className="btn btn-ghost btn-sm"
               >
                 Pricing
               </a>
@@ -122,7 +121,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative" ref={bizDropdownRef}>
               <button
                 onClick={() => setBizDropdownOpen(!bizDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white hover:bg-white border border-slate-200/80 shadow-2xs transition cursor-pointer text-left"
+                className="btn btn-outline btn-sm shadow-2xs max-w-[15rem]"
                 id="btn-biz-switcher"
               >
                 <div className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
@@ -218,7 +217,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               <button
                 onClick={onOpenAuditModal}
-                className="inline-flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white px-3.5 py-1.5 rounded-full shadow-xs transition cursor-pointer"
+                className="btn btn-primary btn-sm inline-flex items-center"
                 id="btn-nav-new-audit"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -228,7 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           ) : (
             <button
               onClick={onOpenAuditModal}
-              className="inline-flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white px-4 py-1.5 rounded-full shadow-xs transition cursor-pointer"
+              className="btn btn-primary btn-sm inline-flex items-center"
               id="btn-nav-analyze-hero"
             >
               <span>Analyze Website</span>

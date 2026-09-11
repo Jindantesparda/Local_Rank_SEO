@@ -14,8 +14,7 @@ import {
   FileCode,
   Copy,
   Check,
-  Sparkles,
-  Users
+  ArrowRight
 } from 'lucide-react';
 import { AuditResult, SeoIssue } from '../types';
 import { Lock } from 'lucide-react';
@@ -182,6 +181,29 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
         </div>
       </div>
 
+      {/* Checks that passed */}
+      {audit.goodCount > 0 && (
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+          <img
+            src="/illustrations/approve-circle-256.png"
+            alt=""
+            width={40}
+            height={40}
+            className="object-contain shrink-0"
+            style={{ width: 40, height: 40 }}
+          />
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-slate-900">
+              {audit.goodCount} check{audit.goodCount === 1 ? '' : 's'} passed
+            </p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              These are already in good shape — no action needed. Filter by{' '}
+              <span className="font-semibold text-slate-700">Passed</span> to review them.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Issues List */}
       <div className="space-y-3">
         {filteredIssues.length === 0 ? (
@@ -233,7 +255,7 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
                         }}
                         className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold transition border border-indigo-200"
                       >
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <FileCode className="w-3.5 h-3.5" />
                         <span>View Fix</span>
                       </button>
                     )}
@@ -278,7 +300,7 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
                       <div className="p-4 bg-white rounded-xl border border-indigo-200 shadow-sm">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
-                            <Sparkles className="w-4 h-4 text-indigo-600" />
+                            <Copy className="w-4 h-4 text-brand-700" />
                             4. Suggested Copy-Paste Solution
                           </span>
                           <span className="text-[10px] text-slate-400 font-mono">
@@ -340,9 +362,14 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-lilac-100 text-brand-700 grid place-items-center shrink-0">
-                  <Users className="w-4 h-4" />
-                </div>
+                <img
+                  src="/illustrations/attention-circle-256.png"
+                  alt=""
+                  width={48}
+                  height={48}
+                  className="object-contain shrink-0"
+                  style={{ width: 48, height: 48 }}
+                />
                 <div>
                   <h3 className="font-bold text-slate-900 text-base">
                     Why visitors are likely leaving
@@ -422,36 +449,58 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
 
         {/* Upgrade Trigger Banner for Remaining Issues on Free Plan */}
         {userTier === 'free' && lockedCount > 0 && (
-          <div className="p-6 rounded-2xl bg-slate-900 text-white border border-slate-800 shadow-md">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-500/30 text-indigo-300 px-2.5 py-0.5 rounded border border-indigo-400/30">
-                    Free Plan Limit • {lockedCount} More Issues Locked
-                  </span>
-                </div>
+          <div
+            className="relative overflow-hidden rounded-2xl border border-brand-700/60 shadow-md"
+            style={{
+              backgroundImage:
+                'linear-gradient(100deg, #2a1236 0%, #4b1a66 46%, #7c3aed 100%)',
+            }}
+          >
+            {/* Soft glow behind the illustration */}
+            <div
+              className="pointer-events-none absolute -left-16 top-1/2 -translate-y-1/2 w-72 h-72 rounded-full"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(196,181,245,0.35) 0%, rgba(124,58,237,0) 70%)',
+              }}
+            />
+
+            <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-6">
+              {/* Illustration */}
+              <img
+                src="/illustrations/progress-circle-256.png"
+                alt=""
+                width={88}
+                height={88}
+                className="w-20 h-20 sm:w-[88px] sm:h-[88px] shrink-0 self-start sm:self-center drop-shadow-xl"
+              />
+
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-[0.12em] text-lilac-100 bg-white/10 border border-white/20 px-2.5 py-1 rounded-full backdrop-blur-xs">
+                  Free Plan Limit • {lockedCount} More Issues Locked
+                </span>
                 <h4 className="text-base sm:text-lg font-bold text-white">
                   You've found the problems. Now track your progress.
                 </h4>
-                <p className="text-xs text-slate-400 max-w-xl">
+                <p className="text-xs text-lilac-200/75 max-w-xl">
                   The recurring value isn't the initial audit. It's ongoing monitoring.
                 </p>
-                <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-indigo-200 pt-1">
+                <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-lilac-200 pt-1">
                   <span className="font-semibold text-white">Growth unlocks:</span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Full SEO audit
+                    <CheckCircle2 className="w-3.5 h-3.5 text-lilac-300" /> Full SEO audit
                   </span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Local SEO analysis
+                    <CheckCircle2 className="w-3.5 h-3.5 text-lilac-300" /> Local SEO analysis
                   </span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Progress tracking
+                    <CheckCircle2 className="w-3.5 h-3.5 text-lilac-300" /> Progress tracking
                   </span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Re-audits
+                    <CheckCircle2 className="w-3.5 h-3.5 text-lilac-300" /> Re-audits
                   </span>
                   <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Competitor comparison
+                    <CheckCircle2 className="w-3.5 h-3.5 text-lilac-300" /> Competitor comparison
                   </span>
                 </div>
               </div>
@@ -459,10 +508,11 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
               {onNavigateBilling && (
                 <button
                   onClick={onNavigateBilling}
-                  className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-sm whitespace-nowrap transition cursor-pointer text-center shrink-0"
+                  className="btn btn-bright btn-md shrink-0 self-start sm:self-center"
                   id="btn-audit-locked-upgrade"
                 >
-                  Upgrade to Growth — $19/mo →
+                  <span>Upgrade to Growth — $19/mo</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               )}
             </div>

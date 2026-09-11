@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Plus, Check, ArrowRight, Globe, MapPin, Building, Tag, FileText } from 'lucide-react';
+import { X, Plus, Check, ArrowRight, Globe, MapPin, Building, Tag, FileText } from 'lucide-react';
 import { Business } from '../types';
 
 interface OnboardingModalProps {
@@ -353,8 +353,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs rounded-lg shadow-sm transition disabled:opacity-50"
                   id="btn-start-audit-final"
                 >
-                  <Sparkles className="w-4 h-4" />
                   <span>{isLoading ? 'Starting Audit...' : 'Start SEO Audit'}</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </form>

@@ -1,6 +1,7 @@
+import 'dotenv/config';
 import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { crawlWebsite } from './server/crawler';
 import { calculateSeoScore } from './server/scoring';
 import { generateIssues } from './server/issues';
@@ -13,10 +14,61 @@ import { AuditResult, Business } from './src/types';
 import { createBillingRouter } from './server/billing';
 import { checkAuditLimit } from './server/planEnforcement';
 
+/**
+ * Simple in-memory rate limiter for the auth routes. Keeps one process honest
+ * against credential stuffing without adding a dependency. If you scale to
+ * multiple instances, move this to Redis or the host's edge limiter.
+ */
+function createAuthRateLimiter() {
+  const WINDOW_MS = 15 * 60 * 1000;
+  const MAX_ATTEMPTS = 30;
+  const hits = new Map<string, { count: number; resetAt: number }>();
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    const now = Date.now();
+    const key = req.ip || 'unknown';
+    const entry = hits.get(key);
+
+    if (!entry || entry.resetAt < now) {
+      hits.set(key, { count: 1, resetAt: now + WINDOW_MS });
+    } else {
+      entry.count += 1;
+      if (entry.count > MAX_ATTEMPTS) {
+        res.setHeader('Retry-After', Math.ceil((entry.resetAt - now) / 1000));
+        return res.status(429).json({
+          error: 'Too many attempts. Please wait a few minutes and try again.',
+        });
+      }
+    }
+
+    // Opportunistic cleanup so the map cannot grow forever.
+    if (hits.size > 5000) {
+      for (const [k, v] of hits) {
+        if (v.resetAt < now) hits.delete(k);
+      }
+    }
+
+    return next();
+  };
+}
+
+
 async function startServer() {
   const app = express();
   // Hosts such as Render/Railway/Fly set PORT. Fall back to 3000 locally.
   const PORT = Number(process.env.PORT) || 3000;
+
+  // Behind a host proxy (Render, Fly, Railway, nginx). Needed so req.ip and
+  // req.secure reflect the real client rather than the proxy.
+  app.set('trust proxy', 1);
+
+  // Minimal security headers — no extra dependency required.
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
 
   app.use(express.json({ limit: '2mb' }));
   // Paynow's webhook posts form-urlencoded data
@@ -27,8 +79,8 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
-  // Auth & user account routes
-  app.use('/api/auth', createAuthRouter());
+  // Auth & user account routes (rate limited against credential stuffing)
+  app.use('/api/auth', createAuthRateLimiter(), createAuthRouter());
 
   // Billing & subscription routes
   app.use('/api/billing', createBillingRouter());
@@ -176,6 +228,9 @@ async function startServer() {
     (process.argv[1] || '').includes(`${path.sep}dist${path.sep}`);
 
   if (!runningCompiledBundle) {
+    // Imported lazily so the production bundle never needs Vite (a
+    // devDependency) at startup — `npm ci --omit=dev` is now safe.
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -184,8 +239,12 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
+    // SPA fallback — but never swallow unknown API routes.
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'Not found.' });
+      }
+      return res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 

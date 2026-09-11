@@ -23,6 +23,10 @@ interface SessionRecord {
   createdAt: string;
 }
 
+/** How long a login stays valid. Override with SESSION_TTL_DAYS. */
+const SESSION_TTL_MS =
+  (Number(process.env.SESSION_TTL_DAYS) || 30) * 24 * 60 * 60 * 1000;
+
 function ensureDataDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -113,6 +117,16 @@ export function getSessionUser(req: {
   const sessions = readJson<SessionRecord[]>(SESSIONS_FILE, []);
   const session = sessions.find((s) => s.token === token);
   if (!session) return null;
+
+  // Sessions expire so a leaked token does not work forever.
+  const age = Date.now() - new Date(session.createdAt).getTime();
+  if (!Number.isFinite(age) || age > SESSION_TTL_MS) {
+    writeJson(
+      SESSIONS_FILE,
+      sessions.filter((s) => s.token !== token)
+    );
+    return null;
+  }
 
   const users = readJson<UserRecord[]>(USERS_FILE, []);
   const record = users.find((u) => u.id === session.userId);

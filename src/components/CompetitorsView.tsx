@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Trophy,
   TrendingUp,
   TrendingDown,
   Plus,
@@ -104,9 +103,14 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
   if (!business || !audit) {
     return (
       <div className="max-w-3xl mx-auto bg-white backdrop-blur-md rounded-3xl p-8 border border-slate-200 shadow-sm text-center">
-        <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 mx-auto flex items-center justify-center">
-          <Trophy className="w-7 h-7" />
-        </div>
+        <img
+          src="/illustrations/competitor-circle-256.png"
+          alt=""
+          width={112}
+          height={112}
+          className="mx-auto object-contain"
+          style={{ width: 112, height: 112 }}
+        />
         <h3 className="mt-4 text-lg font-bold text-slate-900">Compare yourself to the competition</h3>
         <p className="mt-2 text-sm text-slate-600 max-w-md mx-auto">
           Run an audit for a business first. Then you can add competitor websites, compare SEO
@@ -114,7 +118,7 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
         </p>
         <button
           onClick={onNeedBusiness}
-          className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-sm transition cursor-pointer"
+          className="btn btn-primary btn-md mt-5 inline-flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Add a business & run an audit
@@ -126,9 +130,12 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
   if (userTier === 'free') {
     return (
       <div className="max-w-3xl mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm text-center">
-        <div className="w-14 h-14 rounded-2xl bg-lilac-100 text-brand-700 mx-auto flex items-center justify-center">
-          <Trophy className="w-7 h-7" />
-        </div>
+        <img
+          src="/illustrations/competitor-circle-256.png"
+          alt=""
+          className="mx-auto object-contain"
+          style={{ width: 112, height: 112 }}
+        />
         <span className="mt-4 inline-flex px-3 py-1 rounded-full bg-lilac-200 text-[10px] font-bold uppercase tracking-[0.14em] text-brand-700">
           Growth plan
         </span>
@@ -141,7 +148,7 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
         </p>
         <button
           onClick={onUpgrade}
-          className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-brand-700 hover:bg-brand-500 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+          className="btn btn-primary btn-md mt-5 inline-flex items-center gap-2"
         >
           Upgrade to Growth
           <ArrowRight className="w-4 h-4" />
@@ -244,9 +251,14 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
       {/* Header */}
       <div className="bg-white backdrop-blur-md rounded-3xl p-6 border border-slate-200 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-            <Trophy className="w-5 h-5" />
-          </div>
+          <img
+            src="/illustrations/competitor-circle-256.png"
+            alt=""
+            width={88}
+            height={88}
+            className="object-contain shrink-0"
+            style={{ width: 88, height: 88 }}
+          />
           <div>
             <h2 className="text-lg font-bold text-slate-900">Competitor Comparison</h2>
             <p className="text-xs text-slate-500 mt-1 max-w-2xl">
@@ -297,7 +309,7 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
           <button
             onClick={analyze}
             disabled={analyzing || urls.length === 0}
-            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+            className="btn btn-primary btn-md flex items-center justify-center"
           >
             {analyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BarChart3 className="w-3.5 h-3.5" />}
             {analyzing ? 'Analyzing…' : 'Analyze competitors'}
@@ -493,9 +505,14 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
       {/* Search visibility */}
       <div className="bg-white backdrop-blur-md rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-            <Search className="w-5 h-5" />
-          </div>
+          <img
+            src="/illustrations/search-competitors-256.png"
+            alt=""
+            width={64}
+            height={64}
+            className="object-contain shrink-0"
+            style={{ width: 64, height: 64 }}
+          />
           <div>
             <h3 className="text-sm font-bold text-slate-900">Who is showing up above you</h3>
             <p className="text-xs text-slate-500 mt-1">
@@ -515,7 +532,7 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
           <button
             onClick={runSerp}
             disabled={serpLoading}
-            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+            className="btn btn-dark btn-md flex items-center justify-center"
           >
             {serpLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
             {serpLoading ? 'Checking…' : 'Check rankings'}

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Clock,
   ShieldCheck,
-  Sparkles,
   FileText,
   Settings,
   CreditCard,
@@ -690,10 +689,7 @@ export default function App() {
                     }`}
                     id="nav-tab-recommendations"
                   >
-                    <div className="flex items-center gap-3">
-                      <Sparkles className="w-4 h-4" />
-                      <span>Recommendations</span>
-                    </div>
+                    <span>Recommendations</span>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                         activeView === 'recommendations'
@@ -786,12 +782,12 @@ export default function App() {
               {/* Bottom Growth Card */}
               <div className="pt-6 space-y-4">
                 <div className="bg-gradient-to-br from-sky-50/90 via-purple-50/70 to-pink-50/60 border border-slate-200 rounded-3xl p-3.5 text-center space-y-2 shadow-2xs backdrop-blur-sm">
-                  <div className="w-8 h-8 rounded-full bg-white text-sky-500 mx-auto flex items-center justify-center shadow-2xs">
-                    <Sparkles className="w-4 h-4" />
+                  <div className="w-8 h-8 rounded-full bg-white text-brand-700 mx-auto flex items-center justify-center shadow-2xs">
+                    <RefreshCw className="w-4 h-4" />
                   </div>
                   <div>
-                    <h5 className="text-xs font-bold text-slate-800">Weekly SEO Tracking</h5>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Automated crawls & rank alerts</p>
+                    <h5 className="text-xs font-bold text-slate-800">Re-audits & Score History</h5>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Track every change over time</p>
                   </div>
                   <button
                     onClick={() => setActiveView('billing')}
@@ -822,7 +818,7 @@ export default function App() {
 
                 <button
                   onClick={handleTriggerAuditModal}
-                  className="self-end sm:self-auto px-4 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs hover:shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+                  className="btn btn-primary btn-md self-end sm:self-auto flex items-center"
                   id="btn-main-run-audit"
                 >
                   <Plus className="w-3.5 h-3.5" />

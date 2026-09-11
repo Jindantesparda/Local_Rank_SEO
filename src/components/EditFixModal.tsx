@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Sparkles } from 'lucide-react';
+import { X, Copy, Check, Wrench } from 'lucide-react';
 import { SeoIssue } from '../types';
 
 interface EditFixModalProps {
@@ -44,8 +44,8 @@ export const EditFixModal: React.FC<EditFixModalProps> = ({
       <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden text-left animate-in fade-in zoom-in-95 duration-150">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <Sparkles className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-lilac-100 text-brand-700 flex items-center justify-center">
+              <Wrench className="w-4 h-4" />
             </div>
             <div>
               <h3 className="font-bold text-sm text-slate-900">Suggested SEO Fix</h3>

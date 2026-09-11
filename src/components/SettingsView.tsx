@@ -220,7 +220,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                   <button
                     type="submit"
-                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition cursor-pointer"
+                    className="btn btn-dark btn-md"
                   >
                     Update Name
                   </button>
@@ -551,7 +551,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <button
                 type="submit"
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold shadow-xs transition cursor-pointer"
+                className="btn btn-primary btn-md inline-flex items-center"
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>Save Business Profile</span>

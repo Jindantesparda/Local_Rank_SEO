@@ -173,21 +173,37 @@ so we never invent rankings.
 
 To enable it:
 
-1. Create a Programmable Search Engine: https://programmablesearchengine.google.com
-   (set it to search the entire web).
-2. Get a Custom Search JSON API key: https://developers.google.com/custom-search/v1/overview
-3. Set the env vars:
+1. In Google Cloud, enable the **Custom Search API** for your project:
+   https://console.cloud.google.com/apis/library/customsearch.googleapis.com
+2. Create an **API key**: https://console.cloud.google.com/apis/credentials
+   (leave it unrestricted, or restrict it by IP — an HTTP-referrer restriction will block a
+   server-side call and produce a 403).
+3. Create a **Programmable Search Engine**:
+   https://programmablesearchengine.google.com/controlpanel/create
+   and turn on **"Search the entire web"**. If you skip this, results are limited to a site list
+   you provide, and your own domain will never appear.
+4. Copy the search engine ID (the `cx` value) from that control panel.
+5. Set the env vars:
 
 ```bash
 GOOGLE_SEARCH_API_KEY=your-key
 GOOGLE_SEARCH_ENGINE_ID=your-cx
 ```
 
-4. Restart the server. The Competitors tab will now return real top-10 results, mark
+6. Restart the server. The Competitors tab will now return real top-10 results, mark
    your domain with a **YOU** badge, and tell you how many sites are above you.
 
-> Without these keys the tab clearly reports "ranking data is not connected yet"
-> instead of showing fake positions. The score comparison above still works.
+Optional extras:
+
+```bash
+# Point the lookup at a proxy/gateway, or at a stub while testing.
+GOOGLE_SEARCH_BASE_URL=https://www.googleapis.com/customsearch/v1
+```
+
+> Without these keys the tab clearly reports "ranking data is not connected yet", with the
+> setup steps, instead of showing fake positions. The score comparison above still works.
+> If Google rejects the key the error is surfaced verbatim, with a hint about the usual
+> causes (API not enabled, referrer restriction, quota reached).
 
 ---
 

@@ -195,7 +195,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <button
               onClick={handleStartOnboarding}
-              className="w-full py-3 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
+              className="btn btn-primary btn-md w-full flex items-center justify-center gap-2"
               id="btn-welcome-onboarding"
             >
               <span>Set Up My Business & Audit</span>
@@ -241,7 +241,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs transition cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+                className="btn btn-primary btn-md w-full flex items-center justify-center gap-2"
                 id="btn-auth-login-submit"
               >
                 {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -331,7 +331,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-xs transition cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+                className="btn btn-primary btn-md w-full flex items-center justify-center gap-2"
                 id="btn-auth-signup-submit"
               >
                 {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}

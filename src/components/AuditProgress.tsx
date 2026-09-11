@@ -171,7 +171,7 @@ export const AuditProgress: React.FC<AuditProgressProps> = ({
 
                     <button
                       onClick={onRequestSignUp || onViewResults}
-                      className="w-full py-3.5 px-6 rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-sm shadow-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                      className="btn btn-primary btn-lg w-full flex items-center justify-center gap-2"
                       id="btn-gate-create-account"
                     >
                       <span>Create free account to see results →</span>
@@ -181,7 +181,7 @@ export const AuditProgress: React.FC<AuditProgressProps> = ({
                 ) : (
                   <button
                     onClick={onViewResults}
-                    className="w-full py-3.5 px-6 rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-sm shadow-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                    className="btn btn-primary btn-lg w-full flex items-center justify-center gap-2"
                     id="btn-view-seo-score"
                   >
                     <span>View My SEO Score →</span>

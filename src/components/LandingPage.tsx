@@ -185,7 +185,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <button
                   onClick={onStartAudit}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-brand-700 hover:bg-brand-500 text-white font-bold text-sm shadow-sm transition cursor-pointer"
+                  className="btn btn-primary btn-md inline-flex items-center gap-2"
                   id="btn-hero-analyze"
                 >
                   <span>Run My Free SEO Audit</span>
@@ -331,7 +331,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <button
                   onClick={onStartAudit}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-brand-700 hover:bg-brand-500 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                  className="btn btn-primary btn-md inline-flex items-center gap-2"
                 >
                   Check my website
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -458,7 +458,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
             </div>
             <button
               onClick={onStartAudit}
-              className="self-start sm:self-auto px-5 py-2.5 rounded-full bg-brand-700 hover:bg-brand-500 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+              className="btn btn-primary btn-md self-start sm:self-auto"
             >
               Get started free
             </button>
@@ -844,7 +844,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
             <div className="pt-1">
               <button
                 onClick={onStartAudit}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand-700 hover:bg-brand-500 text-white text-[11px] font-bold shadow-sm transition cursor-pointer"
+                className="btn btn-primary btn-sm inline-flex items-center"
               >
                 View recommended fix
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -980,7 +980,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
               </p>
               <button
                 onClick={onOpenAuthSignup}
-                className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-brand-700 hover:bg-brand-500 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+                className="btn btn-primary btn-md mt-6 inline-flex items-center gap-2"
               >
                 Explore the Agency plan
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -1059,7 +1059,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
               <div className="mt-6 pt-4 border-t border-slate-200">
                 <button
                   onClick={onStartAudit}
-                  className="w-full py-2.5 rounded-full border border-slate-300 bg-white hover:bg-lilac-100 font-bold text-xs text-slate-800 transition cursor-pointer"
+                  className="btn btn-secondary btn-md w-full"
                 >
                   Run Free Audit
                 </button>
@@ -1104,7 +1104,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
               <div className="mt-6 pt-4 border-t border-slate-200">
                 <button
                   onClick={onOpenAuthSignup}
-                  className="w-full py-2.5 rounded-full bg-brand-700 hover:bg-brand-500 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                  className="btn btn-primary btn-md w-full"
                 >
                   Start Growth
                 </button>
@@ -1145,7 +1145,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
               <div className="mt-6 pt-4 border-t border-slate-200">
                 <button
                   onClick={onOpenAuthSignup}
-                  className="w-full py-2.5 rounded-full border border-slate-300 bg-white hover:bg-lilac-100 font-bold text-xs text-slate-800 transition cursor-pointer"
+                  className="btn btn-secondary btn-md w-full"
                 >
                   For Agencies
                 </button>
@@ -1212,7 +1212,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
           <div className="mt-8">
             <button
               onClick={onStartAudit}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-white text-brand-900 font-bold text-sm shadow-lg hover:bg-lilac-100 transition cursor-pointer"
+              className="btn btn-on-dark btn-lg"
             >
               <span>Analyze My Website</span>
               <ArrowRight className="w-4 h-4" />

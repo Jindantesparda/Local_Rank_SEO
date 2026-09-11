@@ -157,6 +157,209 @@
   box-shadow: 0 10px 25px -20px rgba(62, 30, 86, 0.3);
 }
 
+/* ==========================================================================
+   Button system
+   Pill geometry, semibold sentence-case labels, a soft brand-tinted shadow on
+   solid buttons, and a distinct pressed state (the button inverts to a tonal
+   fill). Colours come from the app's own palette — brand-700 / brand-500 /
+   lilac tints — so nothing here introduces a new colour scheme.
+   ========================================================================== */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 2.5rem; /* 40px */
+    padding: 0 1.375rem;
+    border-radius: 9999px;
+    border: 1px solid transparent;
+    font-family: inherit;
+    font-size: 0.9375rem; /* 15px */
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: none;
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease,
+      box-shadow 0.18s ease;
+  }
+
+  /* Sizes */
+  .btn-lg {
+    height: 3.25rem; /* 52px */
+    padding: 0 1.75rem;
+    font-size: 1rem;
+  }
+  .btn-md {
+    height: 2.5rem;
+    padding: 0 1.375rem;
+    font-size: 0.9375rem;
+  }
+  .btn-sm {
+    height: 2.125rem; /* 34px */
+    padding: 0 1rem;
+    font-size: 0.875rem;
+  }
+  .btn-xs {
+    height: 1.75rem; /* 28px */
+    padding: 0 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Solid — the primary action. One per view. */
+  .btn-primary {
+    background-color: var(--color-brand-700);
+    border-color: var(--color-brand-700);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(91, 32, 120, 0.25);
+  }
+  .btn-primary:hover {
+    background-color: var(--color-brand-500);
+    border-color: var(--color-brand-500);
+  }
+  .btn-primary:active {
+    background-color: var(--color-lilac-100);
+    border-color: var(--color-lilac-100);
+    color: var(--color-brand-700);
+    box-shadow: none;
+  }
+
+  /* Outline — recedes next to a primary. */
+  .btn-secondary {
+    background-color: #ffffff;
+    border-color: var(--color-brand-500);
+    color: var(--color-brand-700);
+  }
+  .btn-secondary:hover {
+    background-color: var(--color-lilac-50);
+  }
+  .btn-secondary:active {
+    background-color: var(--color-lilac-300);
+  }
+
+  /* Neutral outline for destructive / low-emphasis actions. */
+  .btn-outline {
+    background-color: #ffffff;
+    border-color: var(--color-slate-200);
+    color: var(--color-slate-700);
+  }
+  .btn-outline:hover {
+    background-color: var(--color-lilac-50);
+    border-color: var(--color-slate-300);
+  }
+  .btn-outline:active {
+    background-color: var(--color-lilac-200);
+  }
+
+  /* Text button — no fill until hover. */
+  .btn-ghost {
+    background-color: transparent;
+    color: var(--color-brand-700);
+    padding: 0 1rem;
+  }
+  .btn-ghost:hover {
+    background-color: var(--color-lilac-50);
+  }
+  .btn-ghost:active {
+    background-color: var(--color-lilac-300);
+  }
+
+  /* Dark solid — sits on light surfaces where brand-700 is too close in tone. */
+  .btn-dark {
+    background-color: var(--color-slate-900);
+    border-color: var(--color-slate-900);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(62, 30, 86, 0.22);
+  }
+  .btn-dark:hover {
+    background-color: var(--color-slate-700);
+    border-color: var(--color-slate-700);
+  }
+  .btn-dark:active {
+    background-color: var(--color-lilac-100);
+    border-color: var(--color-lilac-100);
+    color: var(--color-brand-700);
+    box-shadow: none;
+  }
+
+  /* Bright — the highest-contrast violet, for sitting on a dark gradient. */
+  .btn-bright {
+    background-color: var(--color-indigo-400);
+    border-color: var(--color-indigo-400);
+    color: #ffffff;
+    box-shadow: 0 6px 18px rgba(20, 8, 30, 0.3);
+  }
+  .btn-bright:hover {
+    background-color: var(--color-sky-400);
+    border-color: var(--color-sky-400);
+  }
+  .btn-bright:active {
+    background-color: var(--color-lilac-100);
+    border-color: var(--color-lilac-100);
+    color: var(--color-brand-700);
+    box-shadow: none;
+  }
+
+  /* Inverted — for placing a button on a dark section. */
+  .btn-on-dark {
+    background-color: #ffffff;
+    border-color: #ffffff;
+    color: var(--color-brand-900);
+    box-shadow: 0 6px 18px rgba(20, 8, 30, 0.28);
+  }
+  .btn-on-dark:hover {
+    background-color: var(--color-lilac-100);
+    border-color: var(--color-lilac-100);
+  }
+  .btn-on-dark:active {
+    background-color: var(--color-lilac-300);
+    border-color: var(--color-lilac-300);
+    color: var(--color-brand-700);
+    box-shadow: none;
+  }
+
+  /* Icon-only — rounded square, not a pill. */
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border-radius: 0.75rem;
+    border: 1px solid transparent;
+    background-color: var(--color-slate-100);
+    color: var(--color-slate-600);
+    cursor: pointer;
+    transition:
+      background-color 0.18s ease,
+      color 0.18s ease,
+      border-color 0.18s ease;
+  }
+  .btn-icon:hover {
+    background-color: var(--color-lilac-200);
+    color: var(--color-brand-700);
+  }
+  .btn-icon:active {
+    background-color: var(--color-lilac-300);
+  }
+
+  /* Disabled state, shared by every variant. */
+  .btn:disabled,
+  .btn[aria-disabled='true'] {
+    background-color: var(--color-lilac-100);
+    border-color: var(--color-lilac-200);
+    color: var(--color-slate-400);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+}
+
 /* Custom soft scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

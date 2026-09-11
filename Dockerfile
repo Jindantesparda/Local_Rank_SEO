@@ -5,14 +5,15 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 
-# Install all dependencies (dev deps are needed for the Vite build and because
-# the bundled server imports Vite at runtime for dev-mode detection).
+# Install everything (dev deps are needed to run the Vite/TS build).
 COPY package*.json ./
 RUN npm ci --include=dev
 
 # Copy the source and build
 COPY . .
-RUN npm run build
+# Vite is only imported lazily in dev mode, so the dev toolchain can be pruned
+# after the build — the runtime image keeps express, cheerio and dotenv only.
+RUN npm run build && npm prune --omit=dev
 
 ENV NODE_ENV=production
 ENV PORT=3000

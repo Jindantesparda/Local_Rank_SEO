@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Sparkles,
   X,
   Copy,
   Check,
@@ -13,6 +12,7 @@ import {
   Eye,
   CheckCircle2,
   Layers,
+  FileText,
   ArrowRight
 } from 'lucide-react';
 import { PageDraft, Business, SeoIssue } from '../types';
@@ -173,8 +173,8 @@ ${draft.schemaMarkup}
         <div className="p-5 sm:p-6 border-b border-slate-100 bg-gradient-to-r from-sky-50/80 via-indigo-50/50 to-white flex items-center justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-sky-500 text-white shadow-xs">
-                <Sparkles className="w-4 h-4" />
+              <span className="p-1 rounded-lg bg-brand-700 text-white shadow-xs">
+                <FileText className="w-4 h-4" />
               </span>
               <span className="text-xs font-bold text-sky-700 uppercase tracking-wider">
                 Search Vailable Page Drafter
@@ -394,7 +394,7 @@ ${draft.schemaMarkup}
 
             <button
               onClick={() => handleCopy(fullHtmlContent, 'html')}
-              className="px-5 py-2 rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-2"
+              className="btn btn-primary btn-sm flex items-center gap-2"
               id="btn-copy-full-page-html"
             >
               {copiedType === 'html' ? (

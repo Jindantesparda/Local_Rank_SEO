@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Sparkles,
   Search,
   CheckCircle2,
   AlertCircle,
@@ -10,6 +9,8 @@ import {
   ChevronRight,
   Send,
   ArrowUpRight,
+  ArrowRight,
+  RefreshCw,
   TrendingUp,
   Shield,
   Layers,
@@ -167,6 +168,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+            {goodCount > 0 && (
+              <div className="flex items-center gap-3 bg-slate-50/80 rounded-2xl px-4 py-3 border border-slate-200/60">
+                <img
+                  src="/illustrations/approve-circle-256.png"
+                  alt=""
+                  width={44}
+                  height={44}
+                  className="object-contain shrink-0"
+                  style={{ width: 44, height: 44 }}
+                />
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    CHECKS PASSED
+                  </span>
+                  <div className="flex items-baseline gap-1.5 mt-0.5">
+                    <span className="text-2xl font-extrabold text-slate-900">{goodCount}</span>
+                    <span className="text-xs font-semibold text-slate-400">
+                      / {audit.issues.length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-slate-50/80 rounded-2xl px-5 py-3 border border-slate-200/60">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                 SEO SCORE
@@ -185,11 +210,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <button
               onClick={onRunNewAudit || onOpenAuditModal}
-              className="px-5 py-3 rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-2"
+              className="btn btn-primary btn-md flex items-center gap-2"
               id="btn-run-new-audit"
             >
               <span>Run New Audit</span>
-              <Sparkles className="w-3.5 h-3.5" />
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -295,16 +320,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         onClick={() =>
                           onOpenPageGenerator ? onOpenPageGenerator(priority) : onSelectIssue(priority)
                         }
-                        className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                        className="btn btn-primary btn-md w-full flex items-center justify-center gap-2"
                         id={`btn-generate-page-${idx}`}
                       >
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <FileText className="w-3.5 h-3.5" />
                         <span>Generate Page</span>
                       </button>
                     ) : isSchemaIssue ? (
                       <button
                         onClick={() => onSelectIssue(priority)}
-                        className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                        className="btn btn-primary btn-md w-full flex items-center justify-center gap-2"
                         id={`btn-generate-schema-${idx}`}
                       >
                         <FileCode className="w-3.5 h-3.5" />
@@ -319,7 +344,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               priority.suggestedFix?.recommended || priority.recommendedAction
                             )
                           }
-                          className="flex-1 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                          className="btn btn-dark btn-md flex-1 flex items-center justify-center gap-2"
                           id={`btn-copy-fix-${idx}`}
                         >
                           {copiedPriorityId === priority.id ? (
@@ -717,7 +742,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
                 <button
                   onClick={() => onNavigateTab('billing')}
-                  className="px-4 py-2 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-full shadow-sm whitespace-nowrap transition cursor-pointer shrink-0 text-center"
+                  className="btn btn-primary btn-sm whitespace-nowrap shrink-0 text-center"
                   id="btn-dashboard-upgrade-pro"
                 >
                   Start Monitoring — $19/mo →
@@ -754,7 +779,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               className="w-full py-2.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs border border-slate-200/80 shadow-2xs hover:shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
               id="btn-dashboard-top-up-score"
             >
-              <Sparkles className="w-3.5 h-3.5 text-sky-500" />
+              <RefreshCw className="w-3.5 h-3.5 text-brand-500" />
               <span>Run Live Re-Audit</span>
             </button>
           </div>

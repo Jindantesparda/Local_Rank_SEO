@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Sparkles,
   Zap,
   CheckCircle2,
   Copy,
@@ -58,7 +57,6 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
       <div className="bg-indigo-950 text-white p-6 sm:p-8 rounded-2xl shadow-sm border border-indigo-900/80">
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-900/70 border border-indigo-800 text-indigo-300 text-xs font-semibold mb-3">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
             <span>Action Engine</span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-white">
@@ -91,7 +89,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
               : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
           }`}
         >
-          <Sparkles className="w-3 h-3 text-sky-500" />
+          <Layers className="w-3.5 h-3.5" />
           <span>Pages to Create</span>
         </button>
         <button
@@ -153,7 +151,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                     ) : isSchema ? (
                       <FileCode className="w-4 h-4" />
                     ) : (
-                      <Sparkles className="w-4 h-4" />
+                      <Zap className="w-4 h-4" />
                     )}
                   </div>
                   <div>
@@ -212,10 +210,10 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
                   </div>
                   <button
                     onClick={() => onOpenPageGenerator && onOpenPageGenerator(issue)}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer shrink-0"
+                    className="btn btn-primary btn-md inline-flex items-center justify-center gap-2 shrink-0"
                     id={`btn-draft-page-${issue.id}`}
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <FileCode className="w-3.5 h-3.5" />
                     <span>Draft Page</span>
                   </button>
                 </div>
@@ -275,7 +273,7 @@ export const RecommendationsView: React.FC<RecommendationsViewProps> = ({
 
                       <button
                         onClick={() => handleCopy(issue.id, fix.recommended)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs shadow-xs transition cursor-pointer"
+                        className="btn btn-primary btn-sm inline-flex items-center"
                         id={`btn-copy-rec-${issue.id}`}
                       >
                         {copiedId === issue.id ? (
