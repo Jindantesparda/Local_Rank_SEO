@@ -18,12 +18,14 @@ import {
 } from 'lucide-react';
 import { AuditResult, SeoIssue } from '../types';
 import { Lock } from 'lucide-react';
+import { AnalyticsPanel } from './AnalyticsPanel';
 
 interface WebsiteAuditViewProps {
   audit: AuditResult;
   userTier?: 'free' | 'pro' | 'agency';
   onOpenFixModal: (issue: SeoIssue) => void;
   onNavigateBilling?: () => void;
+  token?: string | null;
 }
 
 export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
@@ -31,6 +33,7 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
   userTier = 'free',
   onOpenFixModal,
   onNavigateBilling,
+  token,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
@@ -359,6 +362,9 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
 
         {/* Inferred drop-off analysis — page signals only, never behavioural data */}
         {audit.dropOffAnalysis && (
+          <>
+          <AnalyticsPanel businessId={audit.businessId} token={token} />
+
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-3">
@@ -378,7 +384,7 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
                 </div>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
-                Inferred · not measured
+                Inferred · from your pages, not measured
               </span>
             </div>
 
@@ -445,6 +451,7 @@ export const WebsiteAuditView: React.FC<WebsiteAuditViewProps> = ({
               </div>
             )}
           </div>
+          </>
         )}
 
         {/* Upgrade Trigger Banner for Remaining Issues on Free Plan */}

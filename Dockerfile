@@ -1,7 +1,7 @@
 # Search Vailable — production image
 # Builds the React client + the Express server bundle, then runs the server
 # which serves both the static frontend and the /api routes on one port.
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 
 WORKDIR /app
 
@@ -18,8 +18,9 @@ RUN npm run build && npm prune --omit=dev
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Runtime data (users, sessions, workspaces, payments, subscriptions) is written
-# here. Mount a persistent volume at /app/data in production.
+# Runtime data lives here as a single SQLite database (searchvailable.db) plus
+# its WAL sidecar files. Mount a persistent volume at /app/data in production —
+# this is now the only thing that needs to survive a redeploy.
 RUN mkdir -p /app/data
 
 EXPOSE 3000

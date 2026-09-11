@@ -2,14 +2,18 @@ import 'dotenv/config';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import path from 'path';
-import { crawlWebsite } from './server/crawler';
-import { calculateSeoScore } from './server/scoring';
-import { generateIssues } from './server/issues';
-import { generateDropOffAnalysis } from './server/dropoff';
-import { generateAiRecommendations, generateCustomFix, generateCopilotResponse } from './server/ai';
+import { runAudit, AuditError } from './server/auditPipeline';
+import { generateCustomFix, generateCopilotResponse } from './server/ai';
 import { createAuthRouter, getSessionUser, recordUsage } from './server/auth';
 import { createWorkspaceRouter } from './server/workspace';
 import { createCompetitorsRouter } from './server/competitors';
+import { createReportsRouter } from './server/reportsRouter';
+import { createMonitorRouter } from './server/monitorRouter';
+import { createAnalyticsRouter } from './server/analyticsRouter';
+import { createRankRouter } from './server/rankRouter';
+import { getDb, dbHealth, databasePath } from './server/db';
+import { importLegacyData } from './server/legacyImport';
+import { startMonitoring } from './server/monitor';
 import { AuditResult, Business } from './src/types';
 import { createBillingRouter } from './server/billing';
 import { checkAuditLimit } from './server/planEnforcement';
@@ -54,6 +58,20 @@ function createAuthRateLimiter() {
 
 
 async function startServer() {
+  // Storage: open (or create) the SQLite database, then import any data left
+  // behind by the old JSON-file version. Import runs once, in a transaction.
+  getDb();
+  const importReport = importLegacyData();
+  if (importReport.ran) {
+    console.log(
+      `[db] imported legacy JSON → ${importReport.users} users, ${importReport.sessions} sessions, ` +
+        `${importReport.payments} payments, ${importReport.subscriptions} subscriptions, ` +
+        `${importReport.documents} documents`
+    );
+  } else {
+    console.log(`[db] ready at ${databasePath()}${importReport.skipped ? ` (${importReport.skipped})` : ''}`);
+  }
+
   const app = express();
   // Hosts such as Render/Railway/Fly set PORT. Fall back to 3000 locally.
   const PORT = Number(process.env.PORT) || 3000;
@@ -76,7 +94,22 @@ async function startServer() {
 
   // API Routes
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', time: new Date().toISOString() });
+    const db = dbHealth();
+    // Reports 503 when storage is unavailable so an uptime monitor can tell
+    // "process is up" apart from "process can actually serve requests".
+    res.status(db.ok ? 200 : 503).json({
+      status: db.ok ? 'ok' : 'degraded',
+      time: new Date().toISOString(),
+      uptimeSeconds: Math.round(process.uptime()),
+      database: {
+        ok: db.ok,
+        schemaVersion: db.schemaVersion,
+        users: db.users,
+        documents: db.documents,
+        sizeBytes: db.sizeBytes,
+        error: db.error,
+      },
+    });
   });
 
   // Auth & user account routes (rate limited against credential stuffing)
@@ -90,6 +123,18 @@ async function startServer() {
 
   // Competitor comparison + search visibility
   app.use('/api/competitors', createCompetitorsRouter());
+
+  // Client-ready SEO reports (Agency plan)
+  app.use('/api/reports', createReportsRouter());
+
+  // Automated monitoring: real status + a manual "check now" for the signed-in user
+  app.use('/api/monitor', createMonitorRouter());
+
+  // Google Analytics 4: measured visitor behaviour (operator credential, not per-user)
+  app.use('/api/analytics', createAnalyticsRouter());
+
+  // Keyword rank tracking + drop alerts
+  app.use('/api/rankings', createRankRouter());
 
   // Real AI SEO Copilot
   app.post('/api/ai/copilot', async (req, res) => {
@@ -113,97 +158,28 @@ async function startServer() {
 
       if (!business || !business.website) {
         return res.status(400).json({
-          error: 'Website URL and business details are required.'
+          error: 'Website URL and business details are required.',
         });
       }
 
-      // Format URL if protocol is missing
-      let targetUrl = business.website.trim();
-      if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-        targetUrl = 'https://' + targetUrl;
-        business.website = targetUrl;
-      }
-
-      // Step 1: Real Crawler with retry logic
-      let crawlData;
-      try {
-        crawlData = await crawlWebsite(targetUrl, Math.min(maxPages, 30), business);
-      } catch (crawlErr: unknown) {
-        const msg = crawlErr instanceof Error ? crawlErr.message : 'Crawler error';
-        console.error('Crawl failed:', msg);
-        return res.status(422).json({
-          error: `We couldn't reach your website. ${msg}. Please ensure:\n- The website is online and public\n- The domain is correct (e.g., example.com)\n- The server accepts bot requests`,
-        });
-      }
-
-      if (!crawlData || !crawlData.pages || crawlData.pages.length === 0) {
-        console.error('No pages crawled for:', targetUrl);
-        return res.status(422).json({
-          error: 'We could not reach or parse any pages from this website. The server may be offline, blocking bot requests, or requiring JavaScript rendering.',
-        });
-      }
-
-      // Log successful crawl
-      console.log(`Successfully crawled ${crawlData.pages.length} pages from ${targetUrl}`);
-
-      // Step 2: Deterministic Scoring
-      const scoreBreakdown = calculateSeoScore(crawlData, business);
-
-      // Step 3: Issues Generation
-      const { issues, topPriorities } = generateIssues(crawlData, scoreBreakdown, business);
-
-      // Step 4: AI Recommendations
-      let aiRecommendations = [];
-      try {
-        aiRecommendations = await generateAiRecommendations(topPriorities, business);
-      } catch (aiErr) {
-        console.warn('AI recommendation generation error:', aiErr);
-      }
-
-      // Step 5: Inferred drop-off analysis (page signals only, never faked)
-      const dropOffAnalysis = generateDropOffAnalysis(crawlData, business);
-
-      const auditResult: AuditResult = {
-        id: `audit-${Date.now()}`,
-        businessId: business.id || `biz-${Date.now()}`,
-        business,
-        createdAt: new Date().toISOString(),
-        overallScore: scoreBreakdown.overallScore,
-        technicalScore: scoreBreakdown.technicalScore,
-        onpageScore: scoreBreakdown.onpageScore,
-        localScore: scoreBreakdown.localScore,
-        contentScore: scoreBreakdown.contentScore,
-        pagesAnalyzed: crawlData.pages.length,
-        criticalCount: issues.filter(i => i.severity === 'critical').length,
-        warningCount: issues.filter(i => i.severity === 'high' || i.severity === 'medium').length,
-        goodCount: issues.filter(i => i.severity === 'good').length,
-        pages: crawlData.pages,
-        issues,
-        topPriorities,
-        aiRecommendations,
-        dropOffAnalysis,
-        siteWideChecks: {
-          https: crawlData.siteWide.https,
-          robotsTxt: crawlData.siteWide.robotsTxt,
-          sitemapXml: crawlData.siteWide.sitemapXml,
-          canonicalConsistency: crawlData.siteWide.canonicalConsistency,
-        },
-        isDemo: false,
-      };
+      // Shared with the monitoring scheduler so both produce identical results.
+      const auditResult = await runAudit(business, { maxPages, useAi: true });
 
       // Count the audit server-side so plan limits are enforced authoritatively.
       const auditUser = getSessionUser(req);
       if (auditUser) {
-        recordUsage(auditUser.id, { audits: 1, pages: crawlData.pages.length });
+        recordUsage(auditUser.id, { audits: 1, pages: auditResult.pagesAnalyzed });
       }
 
       return res.json({ audit: auditResult });
     } catch (err: unknown) {
+      if (err instanceof AuditError) {
+        console.error('Audit failed:', err.message);
+        return res.status(err.status).json({ error: err.message });
+      }
       console.error('Audit processing error:', err);
       const message = err instanceof Error ? err.message : 'Internal audit error';
-      return res.status(500).json({
-        error: `Audit failed: ${message}`,
-      });
+      return res.status(500).json({ error: `Audit failed: ${message}` });
     }
   });
 
@@ -250,6 +226,7 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Search Vailable server running on http://0.0.0.0:${PORT}`);
+    startMonitoring();
   });
 }
 

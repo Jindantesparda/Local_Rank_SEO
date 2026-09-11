@@ -1,42 +1,93 @@
-/**
- * Payment and Subscription Data Store
- * Handles persistence of payment records and subscription information
- */
-
-import fs from 'fs';
-import path from 'path';
 import {
   Payment,
+  PaymentMethod,
+  PaymentStatus,
   Subscription,
   SubscriptionTier,
-  PaymentStatus,
-  PaymentMethod,
 } from '../src/types';
+import { getDb, n, tx } from './db';
 
-// DATA_DIR can be pointed at a mounted persistent disk in production.
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-const PAYMENTS_FILE = path.join(DATA_DIR, 'payments.json');
-const SUBSCRIPTIONS_FILE = path.join(DATA_DIR, 'subscriptions.json');
+/**
+ * Payments and subscriptions.
+ *
+ * Relational tables with targeted statements — no load-everything-then-write-
+ * everything. The one multi-row operation (activating a new plan, which must
+ * deactivate the user's previous active subscription) runs in a transaction, so
+ * a user can never end up with two active subscriptions.
+ */
 
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+interface PaymentRow {
+  id: string;
+  user_id: string;
+  subscription_id: string | null;
+  provider: string;
+  provider_ref: string;
+  provider_txn: string | null;
+  plan: string | null;
+  poll_url: string | null;
+  amount: number;
+  currency: string;
+  payment_method: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  webhook_received: string | null;
 }
 
-function readJson<T>(file: string, fallback: T): T {
-  try {
-    const raw = fs.readFileSync(file, 'utf8');
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+interface SubscriptionRow {
+  id: string;
+  user_id: string;
+  plan: string;
+  status: string;
+  period_start: string;
+  period_end: string | null;
+  duration_days: number | null;
+  provider_customer_id: string | null;
+  provider_sub_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-function writeJson(file: string, data: unknown) {
-  ensureDataDir();
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+function toPayment(row: PaymentRow): Payment {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    subscriptionId: row.subscription_id ?? undefined,
+    provider: row.provider,
+    providerReference: row.provider_ref,
+    providerTransactionId: row.provider_txn ?? undefined,
+    plan: (row.plan as SubscriptionTier | null) ?? undefined,
+    pollUrl: row.poll_url ?? undefined,
+    amount: Number(row.amount),
+    currency: row.currency,
+    paymentMethod: row.payment_method as PaymentMethod,
+    status: row.status as PaymentStatus,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    webhookReceivedAt: row.webhook_received ?? undefined,
+  };
 }
 
-// ==================== PAYMENTS ====================
+function toSubscription(row: SubscriptionRow): Subscription {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    plan: row.plan as SubscriptionTier,
+    status: row.status as Subscription['status'],
+    currentPeriodStart: row.period_start,
+    currentPeriodEnd: row.period_end || '',
+    providerCustomerId: row.provider_customer_id ?? undefined,
+    providerSubscriptionId: row.provider_sub_id ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function newId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+}
+
+/* ==================== PAYMENTS ==================== */
 
 export function createPayment(
   userId: string,
@@ -47,10 +98,9 @@ export function createPayment(
   pollUrl?: string,
   providerTransactionId?: string
 ): Payment {
-  const payments = readJson<Payment[]>(PAYMENTS_FILE, []);
-  
+  const now = new Date().toISOString();
   const payment: Payment = {
-    id: `pay_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+    id: newId('pay'),
     userId,
     provider: 'paynow',
     providerReference,
@@ -61,32 +111,55 @@ export function createPayment(
     currency: 'USD',
     paymentMethod,
     status: 'pending',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   };
 
-  payments.push(payment);
-  writeJson(PAYMENTS_FILE, payments);
-  
+  getDb()
+    .prepare(
+      `INSERT INTO payments (id, user_id, subscription_id, provider, provider_ref, provider_txn,
+        plan, poll_url, amount, currency, payment_method, status, created_at, updated_at, webhook_received)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      payment.id,
+      userId,
+      null,
+      payment.provider,
+      providerReference,
+      n(providerTransactionId),
+      n(plan),
+      n(pollUrl),
+      amount,
+      payment.currency,
+      paymentMethod,
+      payment.status,
+      now,
+      now,
+      null
+    );
+
   console.log(`[Payment] Created payment ${payment.id} for user ${userId} (${plan})`);
   return payment;
 }
 
 export function getPayment(paymentId: string): Payment | null {
-  const payments = readJson<Payment[]>(PAYMENTS_FILE, []);
-  return payments.find((p) => p.id === paymentId) || null;
+  const row = getDb().prepare('SELECT * FROM payments WHERE id = ?').get(paymentId) as unknown as PaymentRow | undefined;
+  return row ? toPayment(row) : null;
 }
 
 export function getPaymentByProviderReference(providerReference: string): Payment | null {
-  const payments = readJson<Payment[]>(PAYMENTS_FILE, []);
-  return payments.find((p) => p.providerReference === providerReference) || null;
+  const row = getDb()
+    .prepare('SELECT * FROM payments WHERE provider_ref = ? ORDER BY created_at DESC LIMIT 1')
+    .get(providerReference) as unknown as PaymentRow | undefined;
+  return row ? toPayment(row) : null;
 }
 
 export function getUserPayments(userId: string): Payment[] {
-  const payments = readJson<Payment[]>(PAYMENTS_FILE, []);
-  return payments.filter((p) => p.userId === userId).sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  const rows = getDb()
+    .prepare('SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC')
+    .all(userId) as unknown as PaymentRow[];
+  return rows.map(toPayment);
 }
 
 export function updatePaymentStatus(
@@ -94,148 +167,182 @@ export function updatePaymentStatus(
   status: PaymentStatus,
   webhookReceivedAt?: string
 ): Payment | null {
-  const payments = readJson<Payment[]>(PAYMENTS_FILE, []);
-  const payment = payments.find((p) => p.id === paymentId);
+  return tx(() => {
+    const existing = getPayment(paymentId);
+    if (!existing) return null;
 
-  if (!payment) return null;
+    getDb()
+      .prepare(
+        `UPDATE payments SET status = ?, updated_at = ?,
+           webhook_received = COALESCE(?, webhook_received)
+         WHERE id = ?`
+      )
+      .run(status, new Date().toISOString(), n(webhookReceivedAt), paymentId);
 
-  payment.status = status;
-  payment.updatedAt = new Date().toISOString();
-  if (webhookReceivedAt) {
-    payment.webhookReceivedAt = webhookReceivedAt;
-  }
-
-  writeJson(PAYMENTS_FILE, payments);
-  console.log(`[Payment] Updated payment ${paymentId} status to ${status}`);
-  return payment;
+    console.log(`[Payment] Updated payment ${paymentId} status to ${status}`);
+    return getPayment(paymentId);
+  });
 }
 
 export function updatePaymentSubscription(
   paymentId: string,
   subscriptionId: string
 ): Payment | null {
-  const payments = readJson<Payment[]>(PAYMENTS_FILE, []);
-  const payment = payments.find((p) => p.id === paymentId);
+  return tx(() => {
+    const existing = getPayment(paymentId);
+    if (!existing) return null;
 
-  if (!payment) return null;
+    getDb()
+      .prepare('UPDATE payments SET subscription_id = ?, updated_at = ? WHERE id = ?')
+      .run(subscriptionId, new Date().toISOString(), paymentId);
 
-  payment.subscriptionId = subscriptionId;
-  payment.updatedAt = new Date().toISOString();
-
-  writeJson(PAYMENTS_FILE, payments);
-  return payment;
+    return getPayment(paymentId);
+  });
 }
 
-// ==================== SUBSCRIPTIONS ====================
+/* ==================== SUBSCRIPTIONS ==================== */
 
 export function createSubscription(
   userId: string,
   plan: SubscriptionTier,
   durationDays: number = 30
 ): Subscription {
-  const subscriptions = readJson<Subscription[]>(SUBSCRIPTIONS_FILE, []);
+  // One transaction: deactivate any current plan, then activate the new one.
+  const subscription = tx(() => {
+    const now = new Date();
+    const nowIso = now.toISOString();
 
-  const now = new Date();
-  const endDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    getDb()
+      .prepare(
+        `UPDATE subscriptions SET status = 'canceled', updated_at = ?
+         WHERE user_id = ? AND status = 'active'`
+      )
+      .run(nowIso, userId);
 
-  // A user should only ever have one active subscription. Deactivate older ones.
-  subscriptions.forEach((s) => {
-    if (s.userId === userId && s.status === 'active') {
-      s.status = 'canceled';
-      s.updatedAt = now.toISOString();
-    }
+    const endDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+    const record: Subscription = {
+      id: newId('sub'),
+      userId,
+      plan,
+      status: 'active',
+      currentPeriodStart: nowIso,
+      currentPeriodEnd: endDate.toISOString(),
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    getDb()
+      .prepare(
+        `INSERT INTO subscriptions (id, user_id, plan, status, period_start, period_end,
+          duration_days, provider_customer_id, provider_sub_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        record.id,
+        userId,
+        plan,
+        record.status,
+        record.currentPeriodStart,
+        record.currentPeriodEnd,
+        durationDays,
+        null,
+        null,
+        nowIso,
+        nowIso
+      );
+
+    return record;
   });
 
-  const subscription: Subscription = {
-    id: `sub_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-    userId,
-    plan,
-    status: 'active',
-    currentPeriodStart: now.toISOString(),
-    currentPeriodEnd: endDate.toISOString(),
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-
-  subscriptions.push(subscription);
-  writeJson(SUBSCRIPTIONS_FILE, subscriptions);
-  
   console.log(`[Subscription] Created subscription ${subscription.id} (${plan}) for user ${userId}`);
   return subscription;
 }
 
 export function getSubscription(subscriptionId: string): Subscription | null {
-  const subscriptions = readJson<Subscription[]>(SUBSCRIPTIONS_FILE, []);
-  return subscriptions.find((s) => s.id === subscriptionId) || null;
+  const row = getDb()
+    .prepare('SELECT * FROM subscriptions WHERE id = ?')
+    .get(subscriptionId) as unknown as SubscriptionRow | undefined;
+  return row ? toSubscription(row) : null;
 }
 
 export function getUserActiveSubscription(userId: string): Subscription | null {
-  const subscriptions = readJson<Subscription[]>(SUBSCRIPTIONS_FILE, []);
-  const active = subscriptions
-    .filter((s) => s.userId === userId && s.status === 'active')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  return active[0] || null;
+  const row = getDb()
+    .prepare(
+      `SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'
+       ORDER BY created_at DESC LIMIT 1`
+    )
+    .get(userId) as unknown as SubscriptionRow | undefined;
+  return row ? toSubscription(row) : null;
 }
 
 export function getUserSubscriptions(userId: string): Subscription[] {
-  const subscriptions = readJson<Subscription[]>(SUBSCRIPTIONS_FILE, []);
-  return subscriptions.filter((s) => s.userId === userId).sort((a, b) =>
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  const rows = getDb()
+    .prepare('SELECT * FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC')
+    .all(userId) as unknown as SubscriptionRow[];
+  return rows.map(toSubscription);
 }
 
 export function cancelSubscription(subscriptionId: string): Subscription | null {
-  const subscriptions = readJson<Subscription[]>(SUBSCRIPTIONS_FILE, []);
-  const subscription = subscriptions.find((s) => s.id === subscriptionId);
+  return tx(() => {
+    const existing = getSubscription(subscriptionId);
+    if (!existing) return null;
 
-  if (!subscription) return null;
+    getDb()
+      .prepare(`UPDATE subscriptions SET status = 'canceled', updated_at = ? WHERE id = ?`)
+      .run(new Date().toISOString(), subscriptionId);
 
-  subscription.status = 'canceled';
-  subscription.updatedAt = new Date().toISOString();
-
-  writeJson(SUBSCRIPTIONS_FILE, subscriptions);
-  console.log(`[Subscription] Cancelled subscription ${subscriptionId}`);
-  return subscription;
+    console.log(`[Subscription] Cancelled subscription ${subscriptionId}`);
+    return getSubscription(subscriptionId);
+  });
 }
 
-export function renewSubscription(subscriptionId: string, durationDays: number = 30): Subscription | null {
-  const subscriptions = readJson<Subscription[]>(SUBSCRIPTIONS_FILE, []);
-  const subscription = subscriptions.find((s) => s.id === subscriptionId);
+export function renewSubscription(
+  subscriptionId: string,
+  durationDays: number = 30
+): Subscription | null {
+  return tx(() => {
+    const existing = getSubscription(subscriptionId);
+    if (!existing) return null;
 
-  if (!subscription) return null;
+    const now = new Date();
+    const endDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-  const now = new Date();
-  const endDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    getDb()
+      .prepare(
+        `UPDATE subscriptions SET status = 'active', period_start = ?, period_end = ?,
+           duration_days = ?, updated_at = ? WHERE id = ?`
+      )
+      .run(
+        now.toISOString(),
+        endDate.toISOString(),
+        durationDays,
+        now.toISOString(),
+        subscriptionId
+      );
 
-  subscription.status = 'active';
-  subscription.currentPeriodStart = now.toISOString();
-  subscription.currentPeriodEnd = endDate.toISOString();
-  subscription.updatedAt = now.toISOString();
-
-  writeJson(SUBSCRIPTIONS_FILE, subscriptions);
-  console.log(`[Subscription] Renewed subscription ${subscriptionId}`);
-  return subscription;
+    console.log(`[Subscription] Renewed subscription ${subscriptionId}`);
+    return getSubscription(subscriptionId);
+  });
 }
 
 export function changeSubscriptionPlan(
   subscriptionId: string,
-  newPlan: SubscriptionTier,
-  effectiveDate?: string
+  newPlan: SubscriptionTier
 ): Subscription | null {
-  const subscriptions = readJson<Subscription[]>(SUBSCRIPTIONS_FILE, []);
-  const subscription = subscriptions.find((s) => s.id === subscriptionId);
+  return tx(() => {
+    const existing = getSubscription(subscriptionId);
+    if (!existing) return null;
 
-  if (!subscription) return null;
+    getDb()
+      .prepare('UPDATE subscriptions SET plan = ?, updated_at = ? WHERE id = ?')
+      .run(newPlan, new Date().toISOString(), subscriptionId);
 
-  subscription.plan = newPlan;
-  subscription.updatedAt = new Date().toISOString();
-
-  writeJson(SUBSCRIPTIONS_FILE, subscriptions);
-  console.log(`[Subscription] Changed subscription ${subscriptionId} plan to ${newPlan}`);
-  return subscription;
+    console.log(`[Subscription] Changed subscription ${subscriptionId} plan to ${newPlan}`);
+    return getSubscription(subscriptionId);
+  });
 }
 
-// Helper: Check if subscription is still active (not expired)
 export function isSubscriptionActive(subscription: Subscription): boolean {
   if (subscription.status !== 'active') return false;
   if (!subscription.currentPeriodEnd) return false;

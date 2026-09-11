@@ -10,9 +10,11 @@ import {
   ArrowRight,
   ChevronRight,
   AlertTriangle,
-  Trophy
+  Trophy,
+  Mail
 } from 'lucide-react';
 import { Navbar } from './components/Navbar';
+import { AuthLinkView } from './components/AuthLinkView';
 import { LandingPage } from './components/LandingPage';
 import { OnboardingModal } from './components/OnboardingModal';
 import { AuditProgress } from './components/AuditProgress';
@@ -129,6 +131,8 @@ export default function App() {
   const [selectedFixIssue, setSelectedFixIssue] = useState<SeoIssue | null>(null);
   const [selectedPageDraftIssue, setSelectedPageDraftIssue] = useState<SeoIssue | null>(null);
   const [limitAlert, setLimitAlert] = useState<string | null>(null);
+  const [verifyNotice, setVerifyNotice] = useState<string | null>(null);
+  const [resendingVerification, setResendingVerification] = useState(false);
 
   // Audit Execution state
   const [isAuditing, setIsAuditing] = useState(false);
@@ -550,6 +554,46 @@ export default function App() {
     persistWorkspace(businesses, audits, activeBusinessId);
   };
 
+  const handleResendVerification = async () => {
+    if (!authToken) return;
+    setResendingVerification(true);
+    setVerifyNotice(null);
+    try {
+      const res = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = (await res.json()) as {
+        alreadyVerified?: boolean;
+        devLink?: string;
+        error?: string;
+      };
+      if (data.alreadyVerified) {
+        setCurrentUser((prev) => (prev ? { ...prev, emailVerified: true } : prev));
+        setVerifyNotice('Your email is already confirmed.');
+      } else if (data.devLink) {
+        setVerifyNotice(`Email isn't configured on this server — use this link: ${data.devLink}`);
+      } else if (data.error) {
+        setVerifyNotice(data.error);
+      } else {
+        setVerifyNotice('Verification email sent — check your inbox.');
+      }
+    } catch {
+      setVerifyNotice('Could not send the verification email. Please try again.');
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
+  // Email links (confirmation / password reset) render outside the app shell,
+  // because the visitor may not be signed in when they click them.
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/verify-email' || window.location.pathname === '/reset-password')
+  ) {
+    return <AuthLinkView />;
+  }
+
   return (
     <div className="min-h-screen ethereal-bg text-slate-800 flex flex-col selection:bg-sky-200 selection:text-sky-900 font-sans relative overflow-x-hidden">
       {/* Ambient glowing pastel diffuse spheres matching reference design */}
@@ -570,6 +614,31 @@ export default function App() {
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* Email confirmation prompt */}
+      {currentUser && !currentUser.emailVerified && (
+        <div className="bg-brand-700 text-white px-4 py-2.5 text-xs shadow-xs">
+          <div className="max-w-5xl mx-auto flex flex-wrap items-center gap-2">
+            <Mail className="w-4 h-4 shrink-0" />
+            <span className="font-semibold">
+              Confirm your email address to secure your account.
+            </span>
+            <button
+              onClick={handleResendVerification}
+              disabled={resendingVerification}
+              className="font-bold underline underline-offset-2 hover:text-lilac-200 cursor-pointer"
+              id="btn-resend-verification"
+            >
+              {resendingVerification ? 'Sending…' : 'Resend link'}
+            </button>
+            {verifyNotice && (
+              <span className="text-lilac-200 w-full sm:w-auto sm:ml-2 break-all">
+                {verifyNotice}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -844,6 +913,7 @@ export default function App() {
                     }}
                     onOpenPageGenerator={(issue) => setSelectedPageDraftIssue(issue)}
                     onNavigateTab={(tab) => setActiveView(tab as ActiveView)}
+                    token={authToken}
                   />
                 )}
 
@@ -859,6 +929,7 @@ export default function App() {
                       }
                     }}
                     onNavigateBilling={() => setActiveView('billing')}
+                    token={authToken}
                   />
                 )}
 

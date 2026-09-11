@@ -43,6 +43,8 @@ export interface CrawledPage {
   formCount?: number;
   /** True when a `width=device-width` viewport meta tag was found. */
   hasViewport?: boolean;
+  /** First few hundred characters of visible text, used to spot placeholder pages. */
+  textSample?: string;
   issueCount?: number;
 }
 

@@ -11,6 +11,8 @@ import {
   ArrowUpRight,
   ArrowRight,
   RefreshCw,
+  Download,
+  Lock,
   TrendingUp,
   Shield,
   Layers,
@@ -32,6 +34,7 @@ interface DashboardViewProps {
   onNavigateTab: (tab: 'audit' | 'recommendations' | 'pages' | 'billing') => void;
   onRunNewAudit?: () => void;
   onOpenPageGenerator?: (issue: SeoIssue) => void;
+  token?: string | null;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -43,7 +46,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateTab,
   onRunNewAudit,
   onOpenPageGenerator,
+  token,
 }) => {
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
   const [collectionFilter, setCollectionFilter] = useState<'all' | 'popular' | 'top'>('all');
   const [copiedFix, setCopiedFix] = useState(false);
   const [copiedPriorityId, setCopiedPriorityId] = useState<string | null>(null);
@@ -149,6 +155,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const passedRatio = goodCount / totalChecks;
   const fixesRatio = Math.max(0, (audit.issues.length - goodCount) / totalChecks);
 
+  // Generate the client-ready report (Agency plan). The report routes are
+  // authenticated, so fetch with the bearer token and open the result locally.
+  const fetchReport = async (mode: 'view' | 'download') => {
+    if (!token) {
+      setReportError('Please sign in again to generate a report.');
+      return;
+    }
+    setReportBusy(true);
+    setReportError(null);
+    try {
+      const res = await fetch(`/api/reports/${audit.businessId}/${mode}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        let msg = 'Could not generate the report.';
+        try {
+          const data = (await res.json()) as { error?: string };
+          msg = data.error || msg;
+        } catch {
+          /* non-JSON error page */
+        }
+        throw new Error(msg);
+      }
+
+      const html = await res.text();
+      const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+
+      if (mode === 'view') {
+        window.open(url, '_blank', 'noopener');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } else {
+        const slug = (audit.business?.name || 'report').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `seo-report-${slug}.html`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      }
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : 'Could not generate the report.');
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Executive Business & Audit Overview Card (Requirement 7) */}
@@ -208,6 +261,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
             </div>
 
+            {userTier === 'agency' ? (
+              <>
+                <button
+                  onClick={() => fetchReport('view')}
+                  disabled={reportBusy}
+                  className="btn btn-secondary btn-md flex items-center gap-2"
+                  id="btn-client-report"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>{reportBusy ? 'Preparing…' : 'Client report'}</span>
+                </button>
+                <button
+                  onClick={() => fetchReport('download')}
+                  disabled={reportBusy}
+                  className="btn btn-outline btn-icon"
+                  title="Download report as a file"
+                  aria-label="Download report"
+                  id="btn-download-report"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => onNavigateTab('billing')}
+                className="btn btn-outline btn-sm flex items-center gap-1.5"
+                title="Report generation is part of the Agency plan"
+                id="btn-report-locked"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Report</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-brand-700 bg-lilac-100 px-1.5 py-0.5 rounded-full">
+                  Agency
+                </span>
+              </button>
+            )}
+
             <button
               onClick={onRunNewAudit || onOpenAuditModal}
               className="btn btn-primary btn-md flex items-center gap-2"
@@ -218,6 +308,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           </div>
         </div>
+
+        {reportError && (
+          <div className="mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 font-medium flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+            <span>{reportError}</span>
+          </div>
+        )}
 
         {/* 🚨 FIX THESE FIRST (Core Value Engine) */}
         <div className="pt-6 space-y-4">
@@ -388,6 +485,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         userTier={userTier}
         onNavigateTab={onNavigateTab}
         onRunAudit={onRunNewAudit || onOpenAuditModal}
+        token={token}
       />
 
       {/* Main Grid: Left 2 Columns + Right Balance/Copilot Panel */}

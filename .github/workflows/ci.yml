@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=dev
+
+      - name: Type-check
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build client + server bundle
+        run: npm run build
+
+      - name: Smoke test the production bundle
+        # Starts the built server on a throwaway database and checks that it
+        # boots without Vite (the dev toolchain) and answers on /api/health.
+        env:
+          DATA_DIR: ${{ runner.temp }}/ci-data
+          PORT: '3210'
+          MONITORING_ENABLED: 'false'
+        run: |
+          node --disable-warning=ExperimentalWarning dist/server.cjs > server.log 2>&1 &
+          SERVER_PID=$!
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3210/api/health > health.json; then break; fi
+            sleep 1
+          done
+
+          echo "--- health ---"
+          cat health.json
+          echo
+          echo "--- server log ---"
+          cat server.log
+
+          # The response must say the database is usable, not just that the
+          # process is listening.
+          node -e "
+            const h = require('./health.json');
+            if (h.status !== 'ok') { console.error('status was', h.status); process.exit(1); }
+            if (!h.database || h.database.ok !== true) { console.error('database not ok'); process.exit(1); }
+            if (h.database.schemaVersion < 1) { console.error('schema not migrated'); process.exit(1); }
+            console.log('health check passed, schema v' + h.database.schemaVersion);
+          "
+
+          # The database file must actually have been created on disk.
+          test -f "${DATA_DIR}/searchvailable.db" || { echo "database file missing"; exit 1; }
+
+          kill $SERVER_PID
+
+      - name: Start the server without any credentials configured
+        # Every optional integration must degrade rather than crash. This runs
+        # the server with none of the API keys set and asserts it still serves.
+        env:
+          DATA_DIR: ${{ runner.temp }}/ci-data-bare
+          PORT: '3211'
+          MONITORING_ENABLED: 'false'
+        run: |
+          node --disable-warning=ExperimentalWarning dist/server.cjs > bare.log 2>&1 &
+          SERVER_PID=$!
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3211/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+
+          # Unconfigured integrations report themselves as unconfigured rather
+          # than throwing.
+          curl -fsS http://localhost:3211/api/competitors/config | tee competitors.json
+          node -e "
+            const c = require('./competitors.json');
+            if (c.serpConfigured !== false) { console.error('expected serpConfigured false'); process.exit(1); }
+            if (c.competitorAnalysis !== true) { console.error('crawl comparison must still work'); process.exit(1); }
+            console.log('unconfigured integrations degrade correctly');
+          "
+
+          kill $SERVER_PID

@@ -9,6 +9,8 @@ import {
   AlertCircle,
   ExternalLink,
   Globe,
+  LineChart,
+  RefreshCw,
   BarChart3,
   CheckCircle2,
   Minus,
@@ -52,6 +54,26 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
   const [serpConfigured, setSerpConfigured] = useState<boolean | null>(null);
   const [keyword, setKeyword] = useState('');
   const [serp, setSerp] = useState<SerpResponse | null>(null);
+  const [rankings, setRankings] = useState<{
+    configured: boolean;
+    maxKeywords: number;
+    keywords: Array<{
+      keyword: string;
+      latestPosition: number | null;
+      checks: number;
+      movement: {
+        previous: number | null;
+        current: number | null;
+        change: number | null;
+        dropped: boolean;
+        fellOut: boolean;
+      } | null;
+      trend: number[];
+    }>;
+  } | null>(null);
+  const [trackingKeyword, setTrackingKeyword] = useState(false);
+  const [rankingBusy, setRankingBusy] = useState(false);
+  const [trackNotice, setTrackNotice] = useState<string | null>(null);
   const [serpLoading, setSerpLoading] = useState(false);
 
   const maxCompetitors = userTier === 'free' ? 3 : 10;
@@ -63,6 +85,12 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
       setKeyword([business.category, business.location].filter(Boolean).join(' in '));
     }
   }, [business?.id, business?.category, business?.location]);
+
+  // Load any keywords already being tracked for this business.
+  useEffect(() => {
+    loadRankings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [business?.id, token]);
 
   // Load config + saved competitors
   useEffect(() => {
@@ -222,6 +250,91 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
       setError(err instanceof Error ? err.message : 'Competitor analysis failed.');
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const loadRankings = async () => {
+    // Rank tracking is a paid feature; skip the request entirely on Free.
+    if (!token || userTier === 'free') return;
+    try {
+      const res = await fetch(`/api/rankings/${business.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setRankings(await res.json());
+    } catch {
+      /* advisory only */
+    }
+  };
+
+  const trackKeyword = async (kw: string) => {
+    if (!token || !kw) return;
+    setTrackingKeyword(true);
+    setTrackNotice(null);
+    try {
+      const res = await fetch(`/api/rankings/${business.id}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: kw }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        result?: { position: number | null; error?: string };
+      };
+      if (!res.ok) throw new Error(data.error || 'Could not track that keyword.');
+
+      if (data.result?.error) {
+        setTrackNotice(`Tracking saved, but the first check failed: ${data.result.error}`);
+      } else if (data.result?.position === null) {
+        setTrackNotice(
+          `Tracking “${kw}”. It is not in the top 10 results right now — we will record it as it changes.`
+        );
+      } else {
+        setTrackNotice(`Tracking “${kw}” — currently position ${data.result?.position}.`);
+      }
+      await loadRankings();
+    } catch (err) {
+      setTrackNotice(err instanceof Error ? err.message : 'Could not track that keyword.');
+    } finally {
+      setTrackingKeyword(false);
+    }
+  };
+
+  const refreshRankings = async () => {
+    if (!token) return;
+    setRankingBusy(true);
+    setTrackNotice(null);
+    try {
+      const res = await fetch(`/api/rankings/${business.id}/refresh`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as { error?: string; alerts?: unknown[]; errors?: number };
+      if (!res.ok) throw new Error(data.error || 'Could not check rankings.');
+
+      const alertCount = (data.alerts || []).length;
+      setTrackNotice(
+        alertCount > 0
+          ? `Checked. ${alertCount} keyword${alertCount === 1 ? '' : 's'} dropped — we have emailed you about it.`
+          : 'Checked. No significant movement.'
+      );
+      await loadRankings();
+    } catch (err) {
+      setTrackNotice(err instanceof Error ? err.message : 'Could not check rankings.');
+    } finally {
+      setRankingBusy(false);
+    }
+  };
+
+  const removeKeyword = async (kw: string) => {
+    if (!token) return;
+    try {
+      await fetch(`/api/rankings/${business.id}/${encodeURIComponent(kw)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await loadRankings();
+    } catch {
+      /* ignore */
     }
   };
 
@@ -538,6 +651,109 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
             {serpLoading ? 'Checking…' : 'Check rankings'}
           </button>
         </div>
+
+        {/* Rank tracking — records positions over time so drops can be alerted on */}
+        {serp?.configured && keyword.trim() && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => trackKeyword(keyword.trim())}
+              disabled={trackingKeyword}
+              className="btn btn-secondary btn-sm flex items-center gap-1.5"
+              id="btn-track-keyword"
+            >
+              {trackingKeyword ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <LineChart className="w-3.5 h-3.5" />
+              )}
+              <span>{trackingKeyword ? 'Tracking…' : `Track “${keyword.trim()}”`}</span>
+            </button>
+            <span className="text-[11px] text-slate-400">
+              Saves the position and re-checks it on every scheduled run.
+            </span>
+          </div>
+        )}
+
+        {trackNotice && (
+          <div className="p-3 rounded-xl bg-lilac-50 border border-slate-200 text-xs text-slate-700">
+            {trackNotice}
+          </div>
+        )}
+
+        {rankings && rankings.keywords.length > 0 && (
+          <div className="pt-2 border-t border-slate-100 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-xs font-bold text-slate-700">
+                Tracked keywords ({rankings.keywords.length}/{rankings.maxKeywords})
+              </h4>
+              <button
+                onClick={refreshRankings}
+                disabled={rankingBusy}
+                className="btn btn-ghost btn-sm flex items-center gap-1.5"
+                id="btn-refresh-rankings"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${rankingBusy ? 'animate-spin' : ''}`} />
+                <span>{rankingBusy ? 'Checking…' : 'Check now'}</span>
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              {rankings.keywords.map((kw) => {
+                const move = kw.movement;
+                const isNew = !move || move.change === null;
+                return (
+                  <div
+                    key={kw.keyword}
+                    className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-50/70 border border-slate-100 text-xs"
+                  >
+                    <span className="font-semibold text-slate-700 truncate">{kw.keyword}</span>
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <span className="font-bold text-slate-900">
+                        {kw.latestPosition === null ? 'Not in top 10' : `#${kw.latestPosition}`}
+                      </span>
+                      {!isNew && move && (
+                        <span
+                          className={`font-bold ${
+                            move.dropped || move.fellOut
+                              ? 'text-rose-600'
+                              : move.change === 0
+                                ? 'text-slate-400'
+                                : 'text-emerald-600'
+                          }`}
+                        >
+                          {move.fellOut
+                            ? '↓ left results'
+                            : move.change === 0
+                              ? 'no change'
+                              : move.change && move.change > 0
+                                ? `↓ ${move.change}`
+                                : `↑ ${Math.abs(move.change || 0)}`}
+                        </span>
+                      )}
+                      {kw.trend.length > 1 && (
+                        <span className="text-[10px] text-slate-400">
+                          {kw.trend.map((p) => `#${p}`).join(' → ')}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => removeKeyword(kw.keyword)}
+                        className="text-slate-400 hover:text-rose-600"
+                        title="Stop tracking"
+                        aria-label={`Stop tracking ${kw.keyword}`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Positions are recorded from live search results on each scheduled check. A drop of 3 or
+              more places triggers an email alert.
+            </p>
+          </div>
+        )}
 
         {/*
           Show the setup card whenever ranking data is unavailable — including

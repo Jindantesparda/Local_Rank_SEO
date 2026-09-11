@@ -4,6 +4,7 @@
 # on one URL, so the frontend's relative /api/... calls work.
 #
 # Notes:
+# - Requires Node 24: storage is SQLite via the built-in node:sqlite module.
 # - The disk below makes user/payment data survive restarts and deploys.
 #   Render disks require a paid instance type. On the free tier, remove the
 #   `disk:` block and `DATA_DIR` env var — the app still runs, but data resets
@@ -19,7 +20,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
-        value: "22"
+        value: "24"
       - key: NODE_ENV
         value: production
       - key: DATA_DIR

@@ -58,7 +58,7 @@ function normalizeUrl(input: string): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
-function toDomain(url: string): string {
+export function toDomain(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./i, '').toLowerCase();
   } catch {
@@ -149,11 +149,11 @@ async function mapWithLimit<T, R>(
   return results;
 }
 
-function serpConfigured(): boolean {
+export function serpConfigured(): boolean {
   return Boolean(process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_ENGINE_ID);
 }
 
-async function fetchSerp(query: string, yourDomain: string): Promise<SerpResponse> {
+export async function fetchSerp(query: string, yourDomain: string): Promise<SerpResponse> {
   const apiKey = process.env.GOOGLE_SEARCH_API_KEY as string;
   const cx = process.env.GOOGLE_SEARCH_ENGINE_ID as string;
 

@@ -1,10 +1,10 @@
-import fs from 'fs';
-import path from 'path';
 import { AuditResult, Business } from '../src/types';
+import { docDeleteByUser, docGet, docPut } from './db';
 
-// DATA_DIR can be pointed at a mounted persistent disk in production.
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-const WORKSPACES_FILE = path.join(DATA_DIR, 'workspaces.json');
+/**
+ * Per-user workspace (businesses + audits) for cross-device sync.
+ * Stored as one document row per user; see server/db.ts for the schema.
+ */
 
 export interface WorkspaceRecord {
   businesses: Business[];
@@ -13,51 +13,24 @@ export interface WorkspaceRecord {
   updatedAt: string;
 }
 
-type WorkspaceMap = Record<string, WorkspaceRecord>;
-
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-function readWorkspaces(): WorkspaceMap {
-  try {
-    const raw = fs.readFileSync(WORKSPACES_FILE, 'utf8');
-    return JSON.parse(raw) as WorkspaceMap;
-  } catch {
-    return {};
-  }
-}
-
-function writeWorkspaces(map: WorkspaceMap) {
-  ensureDataDir();
-  fs.writeFileSync(WORKSPACES_FILE, JSON.stringify(map, null, 2));
-}
-
 export function getWorkspace(userId: string): WorkspaceRecord | null {
-  const map = readWorkspaces();
-  return map[userId] || null;
+  return docGet<WorkspaceRecord>('workspace', userId);
 }
 
 export function saveWorkspace(
   userId: string,
   data: { businesses: Business[]; audits: AuditResult[]; activeBusinessId: string }
 ): WorkspaceRecord {
-  const map = readWorkspaces();
   const record: WorkspaceRecord = {
     businesses: data.businesses,
     audits: data.audits,
     activeBusinessId: data.activeBusinessId,
     updatedAt: new Date().toISOString(),
   };
-  map[userId] = record;
-  writeWorkspaces(map);
+  docPut('workspace', userId, userId, record);
   return record;
 }
 
 export function removeWorkspace(userId: string) {
-  const map = readWorkspaces();
-  if (map[userId]) {
-    delete map[userId];
-    writeWorkspaces(map);
-  }
+  docDeleteByUser(userId);
 }

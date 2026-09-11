@@ -17,6 +17,7 @@ import {
   cancelSubscription,
 } from './paymentStore';
 import { PLANS, getPlan } from './plans';
+import { findUserById, updateUser } from './userRepo';
 import {
   createPaymentGateway,
   getGatewayConfig,
@@ -37,36 +38,31 @@ interface UserRecord extends User {
   passwordHash: string;
 }
 
-function readJson<T>(file: string, fallback: T): T {
-  try {
-    const raw = fs.readFileSync(file, 'utf8');
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+/**
+ * Storage moved to SQLite (server/db.ts). The user record is updated through
+ * the repository so the read and write happen in one transaction.
+ */
+function readJson<T>(_file: string, fallback: T): T {
+  return fallback;
 }
 
-function writeJson(file: string, data: unknown) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+function writeJson(_file: string, _data: unknown) {
+  /* no-op: see updateUser() below */
 }
 
 function updateUserSubscription(userId: string, plan: SubscriptionTier, status: string) {
-  const users = readJson<UserRecord[]>(USERS_FILE, []);
-  const user = users.find((u) => u.id === userId);
-  if (!user) return;
-
   const now = new Date();
   const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  user.subscription.plan = plan;
-  user.subscription.status = status as any;
-  user.subscription.currentPeriodStart = now.toISOString();
-  user.subscription.currentPeriodEnd = periodEnd.toISOString();
-  user.subscription.updatedAt = now.toISOString();
-  user.subscriptionTier = plan;
-
-  writeJson(USERS_FILE, users);
+  const user = updateUser(userId, (record) => {
+    record.subscription.plan = plan;
+    record.subscription.status = status as typeof record.subscription.status;
+    record.subscription.currentPeriodStart = now.toISOString();
+    record.subscription.currentPeriodEnd = periodEnd.toISOString();
+    record.subscription.updatedAt = now.toISOString();
+    record.subscriptionTier = plan;
+  });
+  if (!user) return;
   console.log(`[Billing] Updated user ${userId} subscription to ${plan}`);
 }
 
@@ -239,8 +235,7 @@ export function createBillingRouter(): Router {
         // Activate the plan that was actually purchased (stored on the payment).
         const purchasedPlan = payment.plan || 'pro';
 
-        const users = readJson<UserRecord[]>(USERS_FILE, []);
-        const user = users.find((u) => u.id === payment.userId);
+        const user = findUserById(payment.userId);
         if (!user) {
           console.error(`[Billing] User not found: ${payment.userId}`);
           return res.status(404).json({ error: 'User not found' });

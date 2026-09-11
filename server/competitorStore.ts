@@ -1,39 +1,32 @@
-import fs from 'fs';
-import path from 'path';
-import { CompetitorRecord, CompetitorResult } from '../src/types';
+import { CompetitorResult } from '../src/types';
+import { docDeleteByUser, docGet, docPut } from './db';
 
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-const COMPETITORS_FILE = path.join(DATA_DIR, 'competitors.json');
+/**
+ * Saved competitor URLs + their last comparison results, per business.
+ * Key is `${userId}::${businessId}` — the same shape as the old JSON map, so
+ * nothing that reads it had to change.
+ */
 
-type CompetitorMap = Record<string, CompetitorRecord>;
-
-function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+export interface CompetitorRecord {
+  urls: string[];
+  results: CompetitorResult[];
+  updatedAt: string;
 }
 
-function readMap(): CompetitorMap {
-  try {
-    return JSON.parse(fs.readFileSync(COMPETITORS_FILE, 'utf8')) as CompetitorMap;
-  } catch {
-    return {};
-  }
-}
-
-function writeMap(map: CompetitorMap) {
-  ensureDataDir();
-  fs.writeFileSync(COMPETITORS_FILE, JSON.stringify(map, null, 2));
-}
+const NS = 'competitors' as const;
 
 function key(userId: string, businessId: string): string {
   return `${userId}::${businessId}`;
 }
 
-export function getCompetitorRecord(
-  userId: string,
-  businessId: string
-): CompetitorRecord {
-  const record = readMap()[key(userId, businessId)];
-  return record || { urls: [], results: [], updatedAt: '' };
+export function getCompetitorRecord(userId: string, businessId: string): CompetitorRecord {
+  return (
+    docGet<CompetitorRecord>(NS, key(userId, businessId)) || {
+      urls: [],
+      results: [],
+      updatedAt: '',
+    }
+  );
 }
 
 export function saveCompetitorRecord(
@@ -41,29 +34,16 @@ export function saveCompetitorRecord(
   businessId: string,
   patch: Partial<Pick<CompetitorRecord, 'urls' | 'results'>>
 ): CompetitorRecord {
-  const map = readMap();
-  const k = key(userId, businessId);
-  const existing = map[k] || { urls: [], results: [], updatedAt: '' };
-  const next: CompetitorRecord = {
+  const existing = getCompetitorRecord(userId, businessId);
+  const record: CompetitorRecord = {
     urls: patch.urls !== undefined ? patch.urls : existing.urls,
     results: patch.results !== undefined ? patch.results : existing.results,
     updatedAt: new Date().toISOString(),
   };
-  map[k] = next;
-  writeMap(map);
-  return next;
+  docPut(NS, key(userId, businessId), userId, record);
+  return record;
 }
 
 export function removeCompetitorData(userId: string) {
-  const map = readMap();
-  let changed = false;
-  Object.keys(map).forEach((k) => {
-    if (k.startsWith(`${userId}::`)) {
-      delete map[k];
-      changed = true;
-    }
-  });
-  if (changed) writeMap(map);
+  docDeleteByUser(userId);
 }
-
-export type { CompetitorResult };

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { User } from '../types';
 
-type AuthMode = 'login' | 'signup' | 'welcome';
+type AuthMode = 'login' | 'signup' | 'welcome' | 'forgot';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -38,6 +38,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [signedUpUser, setSignedUpUser] = useState<User | null>(null);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetDevLink, setResetDevLink] = useState<string | null>(null);
 
   // Reset the modal whenever it is reopened with a new requested mode
   useEffect(() => {
@@ -79,6 +81,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!email.trim()) {
+      setError('Please enter your email address.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = (await res.json()) as { error?: string; devLink?: string };
+      if (!res.ok) {
+        throw new Error(data.error || 'Could not send the reset link.');
+      }
+      setResetDevLink(data.devLink || null);
+      setResetSent(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not send the reset link.');
     } finally {
       setLoading(false);
     }
@@ -151,6 +182,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {mode === 'welcome' && 'Welcome to Search Vailable'}
                 {mode === 'signup' && 'Create Search Vailable Account'}
                 {mode === 'login' && 'Sign in to Search Vailable'}
+                {mode === 'forgot' && 'Reset your password'}
               </h3>
             </div>
           </div>
@@ -249,6 +281,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </button>
             </form>
 
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setResetSent(false);
+                  setMode('forgot');
+                }}
+                className="text-xs text-slate-500 hover:text-sky-600 font-semibold hover:underline cursor-pointer"
+                id="btn-auth-forgot"
+              >
+                Forgot your password?
+              </button>
+            </div>
+
             <div className="pt-3 border-t border-slate-100 text-center text-xs text-slate-500">
               Don't have an account?{' '}
               <button
@@ -262,6 +309,95 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 Create one
               </button>
             </div>
+          </div>
+        )}
+
+        {/* 2b. FORGOT PASSWORD */}
+        {mode === 'forgot' && (
+          <div className="space-y-4">
+            {resetSent ? (
+              <div className="space-y-3">
+                <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-emerald-900 leading-relaxed">
+                    If an account exists for <strong>{email}</strong>, a reset link is on its way.
+                    Check your inbox and spam folder — the link is valid for one hour.
+                  </p>
+                </div>
+
+                {resetDevLink && (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-1.5">
+                    <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                      Email not configured
+                    </p>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      No email provider is set up on this server, so the link could not be sent.
+                      Use it directly here:
+                    </p>
+                    <a
+                      href={resetDevLink}
+                      className="block text-xs font-bold text-brand-700 break-all hover:underline"
+                    >
+                      {resetDevLink}
+                    </a>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetSent(false);
+                    setResetDevLink(null);
+                    setMode('login');
+                  }}
+                  className="btn btn-outline btn-md w-full"
+                >
+                  Back to log in
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotSubmit} className="space-y-3 text-xs">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Enter the email address on your account and we'll send you a link to choose a new
+                  password.
+                </p>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Email</label>
+                  <div className="relative">
+                    <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      required
+                      placeholder="name@company.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-400 text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn btn-primary btn-md w-full flex items-center justify-center gap-2"
+                  id="btn-auth-forgot-submit"
+                >
+                  {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {loading ? 'Sending...' : 'Send reset link'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setMode('login');
+                  }}
+                  className="btn btn-ghost btn-sm w-full"
+                >
+                  Back to log in
+                </button>
+              </form>
+            )}
           </div>
         )}
 
