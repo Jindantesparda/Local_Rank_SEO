@@ -1,1 +1,10 @@
-{"user":{"id":"usr_fd9640e039bd67bc","name":"Fresh User","email":"fresh@test.com","emailVerified":false,"subscription":{"plan":"free","status":"active","currentPeriodStart":"2026-09-11T21:15:02.431Z","createdAt":"2026-09-11T21:15:02.431Z","updatedAt":"2026-09-11T21:15:02.431Z"},"subscriptionTier":"free","usage":{"auditsUsed":0,"pagesCrawled":0,"aiRequests":0},"businessIds":[],"createdAt":"2026-09-11T21:15:02.431Z"},"token":"b74c7f7b05ef72fed39f019f239d84b3cf6dc1850f88176de37b295e88bf4ebd","emailVerification":{"sent":false,"devLink":"http://localhost:3302/verify-email?token=317eadac0bf5d58b2d2605d129988e498ba33f6fba24433afac1782f56824848"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>SyntaxError: Expected double-quoted property name in JSON at position 36 (line 1 column 37)<br> &nbsp; &nbsp;at JSON.parse (&lt;anonymous&gt;)<br> &nbsp; &nbsp;at parse (C:\Users\Munya\Documents\GitHub\Local_Rank_SEO\node_modules\body-parser\lib\types\json.js:96:19)<br> &nbsp; &nbsp;at C:\Users\Munya\Documents\GitHub\Local_Rank_SEO\node_modules\body-parser\lib\read.js:128:18<br> &nbsp; &nbsp;at AsyncResource.runInAsyncScope (node:async_hooks:228:14)<br> &nbsp; &nbsp;at invokeCallback (C:\Users\Munya\Documents\GitHub\Local_Rank_SEO\node_modules\raw-body\index.js:238:16)<br> &nbsp; &nbsp;at done (C:\Users\Munya\Documents\GitHub\Local_Rank_SEO\node_modules\raw-body\index.js:227:7)<br> &nbsp; &nbsp;at IncomingMessage.onEnd (C:\Users\Munya\Documents\GitHub\Local_Rank_SEO\node_modules\raw-body\index.js:287:7)<br> &nbsp; &nbsp;at IncomingMessage.emit (node:events:508:28)<br> &nbsp; &nbsp;at endReadableNT (node:internal/streams/readable:1729:12)<br> &nbsp; &nbsp;at process.processTicksAndRejections (node:internal/process/task_queues:90:21)</pre>
+</body>
+</html>
