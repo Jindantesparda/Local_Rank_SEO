@@ -45,7 +45,7 @@ Kept in the README on purpose so the gap between what the product *claims* and w
 | Client-ready reports | Agency plan; branded, print-optimised, save as PDF |
 | Google Analytics 4 | Measured bounce, engagement, worst landing pages |
 | SQLite storage | Transactions, WAL, one-time importer from the old JSON files |
-| Tests + CI | 48 tests; GitHub Actions runs lint → test → build → smoke |
+| Tests + CI | 57 tests; GitHub Actions runs lint → test → build → smoke |
 
 ### Awaiting credentials (the code is finished)
 
@@ -827,6 +827,31 @@ Put Nginx/Caddy in front for HTTPS, then set `APP_URL` to the public HTTPS URL.
 - Point your custom domain at the Node host instead of Vercel.
 - For live Paynow payments, set `APP_URL` to the public HTTPS URL and configure
   the Paynow webhook as `https://your-domain.com/api/billing/webhook`.
+
+---
+
+## Browser smoke test
+
+`npm test` renders components with `renderToString`, which does **not** run effects. That leaves a
+whole class of bug invisible — including one that made the Competitors page go completely blank: a
+`useEffect` ran on every plan, but the Free and empty-state branches returned before a `const` the
+effect called was initialised, so it hit a temporal dead zone error and React unmounted the entire app.
+
+`npm run smoke:browser` drives real Chrome over the DevTools protocol, seeds a session, clicks a tab
+and fails if the page blanked or anything threw:
+
+```bash
+npm run build && npm start                                       # in one terminal
+npm run smoke:browser                                            # signed-out landing page
+APP=http://localhost:3000 SV_TOKEN=<token> npm run smoke:browser # a signed-in view
+SV_TAB=nav-tab-competitors npm run smoke:browser                 # pick which tab to click
+```
+
+It needs Chrome installed; set `CHROME_PATH` if it is somewhere unusual. `SV_TAB` takes the id of any
+sidebar tab (`nav-tab-competitors`, `nav-tab-settings`, …).
+
+**Test it on every plan tier.** The blank-page bug only appeared on Free, because that is the branch
+that returned early — checking a single plan would have missed it entirely.
 
 ---
 

@@ -25,6 +25,7 @@ import { PagesView } from './components/PagesView';
 import { SettingsView } from './components/SettingsView';
 import { BillingView } from './components/BillingView';
 import { CompetitorsView } from './components/CompetitorsView';
+import ErrorBoundary from './components/ErrorBoundary';
 import { EditFixModal } from './components/EditFixModal';
 import { PageGeneratorModal } from './components/PageGeneratorModal';
 import { AuthModal } from './components/AuthModal';
@@ -944,6 +945,7 @@ export default function App() {
                 {activeView === 'pages' && <PagesView audit={currentAudit} />}
 
                 {activeView === 'competitors' && (
+                  <ErrorBoundary label="Competitor comparison">
                   <CompetitorsView
                     business={currentAudit.business}
                     audit={currentAudit}
@@ -952,6 +954,7 @@ export default function App() {
                     onNeedBusiness={handleTriggerAuditModal}
                     onUpgrade={() => setActiveView('billing')}
                   />
+                  </ErrorBoundary>
                 )}
 
                 {activeView === 'settings' && (

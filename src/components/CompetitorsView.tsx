@@ -253,7 +253,13 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
     }
   };
 
-  const loadRankings = async () => {
+  // Declared as a function (not a const arrow) on purpose: the effect above
+  // runs on every tier, but the Free and empty-state branches return BEFORE
+  // this point. A const would still be in its temporal dead zone when that
+  // effect fired, which crashed the whole page with
+  // "Cannot access 'loadRankings' before initialization". Function
+  // declarations are hoisted, so this one is always safe to call.
+  async function loadRankings() {
     // Rank tracking is a paid feature; skip the request entirely on Free.
     if (!token || userTier === 'free') return;
     try {
@@ -264,7 +270,7 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
     } catch {
       /* advisory only */
     }
-  };
+  }
 
   const trackKeyword = async (kw: string) => {
     if (!token || !kw) return;

@@ -13,6 +13,9 @@ import {
   Building2,
   ClipboardList,
   ShieldCheck,
+  Crosshair,
+  Shield,
+  MoreHorizontal,
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -47,18 +50,21 @@ const STATS = [
     label: 'Categories',
     value: '4',
     suffix: '',
-    caption: 'Technical, on-page, local and content — each scored separately.',
+    icon: Shield,
+    caption: 'Technical, on-page, local and content — scored separately.',
   },
   {
     label: 'Signals checked',
     value: '25',
     suffix: '+',
+    icon: ShieldCheck,
     caption: 'Titles, schema, HTTPS, alt text, NAP and location signals.',
   },
   {
     label: 'To get started',
     value: '$0',
     suffix: '',
+    icon: Crosshair,
     caption: 'A free audit with no credit card required.',
   },
 ];
@@ -652,9 +658,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
       {/* ===================== 100-POINT SCORE + STATS ===================== */}
       <section id="score" className="py-14 sm:py-20 bg-white border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-[28px] bg-lilac-200 border border-slate-200 p-5 sm:p-8 grid grid-cols-1 lg:grid-cols-2 gap-9 items-center">
+          <div className="rounded-[28px] bg-lilac-200 border border-slate-200 p-5 sm:p-8 grid grid-cols-1 lg:grid-cols-2 gap-9 items-stretch">
             {/* Left: white sub-panel with stacked mini cards */}
-            <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm space-y-4">
+            <div className="rounded-2xl bg-white border border-slate-200 p-5 pb-6 shadow-sm flex flex-col justify-between gap-4">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
@@ -689,13 +695,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
                   <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
                     Issue breakdown
                   </span>
-                  <span className="text-slate-300 leading-none">⋯</span>
+                  <MoreHorizontal className="w-3.5 h-3.5 text-slate-300" aria-hidden="true" />
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   {[
-                    { label: 'High', value: '45%', dot: 'bg-pink-500' },
-                    { label: 'Medium', value: '32%', dot: 'bg-pink-300' },
-                    { label: 'Good', value: '23%', dot: 'bg-pink-400' },
+                    { label: 'High', value: '45%', dot: 'bg-amber-500' },
+                    { label: 'Medium', value: '32%', dot: 'bg-brand-500' },
+                    { label: 'Good', value: '23%', dot: 'bg-sky-300' },
                   ].map((row) => (
                     <div key={row.label}>
                       <div className="flex items-center justify-center gap-1.5">
@@ -708,16 +714,51 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 space-y-2">
-                  <div className="h-3.5 rounded-full bg-pink-500" style={{ width: '88%' }} />
-                  <div className="h-3.5 rounded-full bg-pink-300" style={{ width: '62%' }} />
-                  <div className="h-3.5 rounded-full bg-pink-400" style={{ width: '44%' }} />
+
+                {/* One segmented bar showing the split, rather than three bars
+                    that read as three separate scores. */}
+                <div className="mt-3 flex h-3.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full bg-amber-500" style={{ width: '45%' }} />
+                  <div className="h-full bg-brand-500" style={{ width: '32%' }} />
+                  <div className="h-full bg-sky-300" style={{ width: '23%' }} />
+                </div>
+
+                {/* The two strongest categories, labelled so these read as
+                    real sub-scores rather than as loading placeholders. */}
+                <div className="mt-4 space-y-2.5">
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-600 mb-1">
+                      <span>Technical</span>
+                      <span className="text-slate-700">21 / 25</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-sky-300" style={{ width: '84%' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-600 mb-1">
+                      <span>On-page</span>
+                      <span className="text-slate-700">19 / 30</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-brand-700" style={{ width: '63%' }} />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Right: copy */}
-            <div>
+            <div className="self-center">
+              {/* approve.png — a thumbs-up character badge, reinforcing that the
+                  score is something to act on rather than fear. */}
+              <img
+                src="/illustrations/approve-circle-256.png"
+                alt="Illustration of a smiling character giving a thumbs up"
+                width={88}
+                height={88}
+                className="w-[88px] h-[88px] object-contain mb-4"
+              />
               <span className="inline-flex px-3 py-1 rounded-full bg-lilac-300 text-[10px] font-bold uppercase tracking-[0.14em] text-brand-700">
                 The 100-point score
               </span>
@@ -760,9 +801,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
           {/* Stats */}
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-5">
             {STATS.map((stat) => (
-              <div key={stat.label} className="rounded-2xl bg-lilac-50 border border-slate-200 p-5">
+              <div key={stat.label} className="rounded-2xl bg-white border border-slate-200 p-5">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-3.5 h-3.5 text-brand-500" />
+                  <stat.icon className="w-3.5 h-3.5 text-brand-500" />
                   <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
                     {stat.label}
                   </span>
@@ -773,7 +814,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
                     <span className="text-base font-bold align-super ml-0.5">{stat.suffix}</span>
                   )}
                 </p>
-                <p className="mt-2 text-[11px] text-slate-500 leading-relaxed">{stat.caption}</p>
+                <p className="mt-2 text-[11px] text-slate-600 leading-relaxed">{stat.caption}</p>
               </div>
             ))}
           </div>
@@ -855,9 +896,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
       </section>
 
       {/* ===================== LOCAL VISIBILITY ===================== */}
-      <section id="local-visibility" className="py-14 sm:py-20 bg-lilac-50 border-b border-slate-200">
+      <section id="local-visibility" className="py-14 sm:py-20 bg-white border-b border-slate-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+          <div className="rounded-[28px] bg-lilac-200 border border-slate-200 p-5 sm:p-8 grid grid-cols-1 lg:grid-cols-[1fr_1.15fr_1fr] gap-8 items-start">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-500">
                 Local visibility
@@ -888,6 +929,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
               </div>
             </div>
 
+            {/* Centre: search_competitors.png — the business highlighted among
+                its local competitors, which is what this section is about. */}
+            <div className="flex justify-center self-center">
+              <img
+                src="/illustrations/search-competitors-lg.png"
+                alt="Illustration of a map with local competitors pinned around a highlighted ‘Your Business’ pin, beside a card of nearby search results"
+                width={900}
+                height={750}
+                className="w-full max-w-[480px] h-auto object-contain drop-shadow-xl"
+              />
+            </div>
+
             <div>
               <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 mb-3">
                 Example local search opportunities
@@ -903,7 +956,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStartAudit, onOpenAu
                   </div>
                 ))}
               </div>
-              <p className="text-[11px] text-slate-500 mt-3">
+              <p className="text-[11px] text-slate-600 mt-3">
                 Example opportunities based on sample business, location and service data.
               </p>
             </div>
