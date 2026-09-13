@@ -174,6 +174,7 @@ export function rankDropEmail(
       'Your search positions moved',
       `<p><strong>${businessName}</strong> dropped in these searches on your latest scheduled check:</p>
        <ul style="padding-left:18px;margin:12px 0">${rows}</ul>
+       <p>These come from Google Search Console, so they are the average position Google reported over the last few weeks rather than a single day's result — Google publishes this data 2-3 days behind.</p>
        <p>Rankings move for many reasons — a competitor publishing a stronger page, a Google algorithm update, or a page of yours losing relevance. Open your dashboard to compare your pages against the sites now above you.</p>`,
       { label: 'Open my dashboard', url }
     ),

@@ -2,7 +2,15 @@ import { GoogleGenAI } from '@google/genai';
 import { AuditResult, Business, SeoIssue, AiRecommendation, SuggestedFix } from '../src/types';
 import { guessCountryCode } from './country';
 
-const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+/**
+ * Model choice matters more than it looks: Google now restricts older models to
+ * existing users, so a brand-new API key gets a 404 for gemini-2.5-flash and
+ * similar. gemini-3.6-flash is what a new key can actually call (verified
+ * against a fresh key in Sep 2026). Override with GEMINI_MODEL if your key has
+ * access to something else — the app degrades to deterministic wording either
+ * way, but a wrong model means you silently never get AI-written text.
+ */
+const AI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
 let genAIClient: GoogleGenAI | null = null;
 

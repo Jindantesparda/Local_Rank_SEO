@@ -2,7 +2,13 @@ import { Router, Request, Response } from 'express';
 import { getSessionUser } from './auth';
 import { getWorkspace } from './workspaceStore';
 import { getPlan } from './plans';
-import { serpConfigured } from './competitors';
+import {
+  isSearchConsoleConfigured,
+  normaliseSiteUrl,
+  searchConsoleServiceAccountEmail,
+  verifySite,
+} from './searchConsole';
+import { connect, disconnect, getConnection } from './searchConsoleStore';
 import {
   getRankingRecord,
   recordSnapshot,
@@ -10,19 +16,27 @@ import {
   untrackKeyword,
   MAX_TRACKED_KEYWORDS,
 } from './rankStore';
-import { checkKeyword, detectMovement, positionTrend, refreshTrackedKeywords } from './rankTracker';
+import {
+  checkKeyword,
+  detectMovement,
+  positionTrend,
+  refreshTrackedKeywords,
+} from './rankTracker';
 
 /**
- * Keyword rank tracking.
+ * Keyword rank tracking, sourced from Google Search Console.
  *
- *   GET    /api/rankings/:businessId            → tracked keywords + history
- *   POST   /api/rankings/:businessId            → track a keyword (checked immediately)
- *   DELETE /api/rankings/:businessId/:keyword   → stop tracking
- *   POST   /api/rankings/:businessId/refresh    → re-check every tracked keyword now
+ *   GET    /api/rankings/:businessId             tracked keywords + history
+ *   POST   /api/rankings/:businessId             track a keyword
+ *   DELETE /api/rankings/:businessId/:keyword    stop tracking
+ *   POST   /api/rankings/:businessId/refresh     re-check every keyword now
+ *   GET    /api/rankings/:businessId/connection  Search Console connection state
+ *   PUT    /api/rankings/:businessId/connection  connect a property
+ *   DELETE /api/rankings/:businessId/connection  disconnect
  *
- * Ranking data requires the Google Custom Search credentials, so everything
- * reports `configured: false` rather than inventing positions when they are
- * missing. Tracking is a paid-plan feature.
+ * Tracking is a paid-plan feature. Positions come only from Search Console, so
+ * nothing is invented: without a connected property the UI says so instead of
+ * showing a number.
  */
 export function createRankRouter(): Router {
   const router = Router();
@@ -50,15 +64,88 @@ export function createRankRouter(): Router {
     return { user, business };
   }
 
+  /* ------------------------ Search Console link ------------------------- */
+
+  router.get('/:businessId/connection', (req: Request, res: Response) => {
+    const ctx = context(req, res, req.params.businessId);
+    if (!ctx) return;
+
+    const connection = getConnection(ctx.user.id, ctx.business.id);
+    return res.json({
+      serviceAccountConfigured: isSearchConsoleConfigured(),
+      // The address the operator adds as a user on the Search Console property.
+      serviceAccountEmail: isSearchConsoleConfigured()
+        ? searchConsoleServiceAccountEmail()
+        : null,
+      connected: connection !== null,
+      siteUrl: connection?.siteUrl ?? null,
+      connectedAt: connection?.connectedAt ?? null,
+      lastFetchedAt: connection?.lastFetchedAt ?? null,
+      lastError: connection?.lastError ?? null,
+      suggestedSiteUrl: normaliseSiteUrl(ctx.business.website || ''),
+    });
+  });
+
+  router.put('/:businessId/connection', async (req: Request, res: Response) => {
+    const ctx = context(req, res, req.params.businessId);
+    if (!ctx) return;
+
+    if (!isSearchConsoleConfigured()) {
+      return res.status(503).json({
+        error:
+          'No Google service account is configured on this server yet. Set GOOGLE_SERVICE_ACCOUNT_JSON (see the README) before connecting Search Console.',
+      });
+    }
+
+    const raw = (req.body as { siteUrl?: string }).siteUrl;
+    const siteUrl = normaliseSiteUrl(raw || ctx.business.website || '');
+    if (!siteUrl) {
+      return res
+        .status(400)
+        .json({ error: 'Enter the Search Console property, for example sc-domain:example.com' });
+    }
+
+    try {
+      // Verify before saving, so a typo does not look like "connected".
+      await verifySite(siteUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not verify that property.';
+      return res.status(400).json({ error: message });
+    }
+
+    connect(ctx.user.id, ctx.business.id, siteUrl);
+    return res.json({ connected: true, siteUrl });
+  });
+
+  router.delete('/:businessId/connection', (req: Request, res: Response) => {
+    const ctx = context(req, res, req.params.businessId);
+    if (!ctx) return;
+    disconnect(ctx.user.id, ctx.business.id);
+    return res.json({ connected: false });
+  });
+
+  /* --------------------------- tracked keywords ------------------------- */
+
   router.get('/:businessId', (req: Request, res: Response) => {
     const ctx = context(req, res, req.params.businessId);
     if (!ctx) return;
 
     const record = getRankingRecord(ctx.user.id, ctx.business.id);
+    const connection = getConnection(ctx.user.id, ctx.business.id);
 
     return res.json({
-      configured: serpConfigured(),
+      configured: isSearchConsoleConfigured() && connection !== null,
+      connected: connection !== null,
+      siteUrl: connection?.siteUrl ?? null,
+      source: 'search-console',
+      sourceLabel: 'Google Search Console',
       maxKeywords: MAX_TRACKED_KEYWORDS,
+      /**
+       * Surfaced so the UI can be explicit that this is an average over a
+       * window rather than a live SERP position.
+       */
+      positionNote:
+        'Average position over the last 28 days as reported by Google Search Console. Google publishes this 2-3 days behind, and it only covers queries your site already appeared for.',
       keywords: record.keywords.map((kw) => {
         const movement = detectMovement(kw);
         const latest = [...kw.history].reverse().find((s) => !s.error);
@@ -67,7 +154,10 @@ export function createRankRouter(): Router {
           createdAt: kw.createdAt,
           lastCheckedAt: kw.lastCheckedAt,
           latestPosition: latest?.position ?? null,
-          latestError: latest?.error,
+          latestClicks: latest?.clicks ?? null,
+          latestImpressions: latest?.impressions ?? null,
+          // Always present (null when fine) so the client can rely on the shape.
+          latestError: kw.history.length ? [...kw.history].reverse()[0].error ?? null : null,
           checks: kw.history.length,
           movement,
           trend: positionTrend(kw),
@@ -81,6 +171,14 @@ export function createRankRouter(): Router {
     const ctx = context(req, res, req.params.businessId);
     if (!ctx) return;
 
+    if (!getConnection(ctx.user.id, ctx.business.id)) {
+      return res.status(409).json({
+        error:
+          'Connect Google Search Console for this business first — positions come from Google, not from scraping search results.',
+        needsConnection: true,
+      });
+    }
+
     const { keyword } = req.body as { keyword?: string };
     if (!keyword || !keyword.trim()) {
       return res.status(400).json({ error: 'Enter a keyword to track.' });
@@ -92,31 +190,30 @@ export function createRankRouter(): Router {
     }
 
     // Take the first reading straight away so the user sees a number.
-    const result = await checkKeyword(ctx.business, keyword.trim());
-    if (!result.error) {
-      recordSnapshot(ctx.user.id, ctx.business.id, keyword.trim(), {
-        checkedAt: new Date().toISOString(),
-        position: result.position,
-        resultsCount: result.resultsCount,
-      });
-    }
+    const clean = keyword.trim();
+    const result = await checkKeyword(ctx.user.id, ctx.business.id, clean);
 
-    return res.json({
-      tracked: true,
-      configured: serpConfigured(),
-      result,
+    recordSnapshot(ctx.user.id, ctx.business.id, clean, {
+      checkedAt: new Date().toISOString(),
+      position: result.error ? null : result.position,
+      resultsCount: result.impressions,
+      clicks: result.clicks,
+      impressions: result.impressions,
+      source: 'search-console',
+      error: result.error,
     });
+
+    return res.json({ tracked: true, result });
   });
 
   router.post('/:businessId/refresh', async (req: Request, res: Response) => {
     const ctx = context(req, res, req.params.businessId);
     if (!ctx) return;
 
-    if (!serpConfigured()) {
-      return res.status(503).json({
-        error:
-          'Rank tracking needs Google Custom Search credentials on this server (GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_ENGINE_ID).',
-      });
+    if (!getConnection(ctx.user.id, ctx.business.id)) {
+      return res
+        .status(409)
+        .json({ error: 'Connect Google Search Console for this business first.', needsConnection: true });
     }
 
     try {

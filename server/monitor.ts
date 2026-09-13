@@ -11,7 +11,8 @@ import {
 } from './monitorStore';
 import { appBaseUrl, sendEmail, scoreDropEmail, rankDropEmail } from './email';
 import { refreshTrackedKeywords } from './rankTracker';
-import { serpConfigured } from './competitors';
+import { getConnection } from './searchConsoleStore';
+import { isSearchConsoleConfigured } from './searchConsole';
 
 /**
  * Automated monitoring.
@@ -190,7 +191,8 @@ export async function runMonitoringPass(onlyUserId?: string): Promise<Monitoring
 
         // Re-check any tracked keywords as part of the same scheduled pass, and
         // alert on real drops (only when the search API is configured).
-        if (serpConfigured()) {
+        // Rank tracking needs Search Console connected for this business.
+        if (isSearchConsoleConfigured() && getConnection(user.id, business.id)) {
           try {
             const rank = await refreshTrackedKeywords(user.id, business);
             if (rank.alerts.length > 0) {

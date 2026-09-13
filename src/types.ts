@@ -287,5 +287,33 @@ export interface SerpResponse {
   yourDomain: string;
   yourPosition: number | null;
   aboveYou: number;
+  /**
+   * Which search index produced these results. Brave has its own index, so a
+   * Brave position is NOT a Google position and must never be labelled as one.
+   */
+  source?: 'brave' | 'google-custom-search' | 'none';
+  sourceLabel?: string;
   message?: string;
+}
+
+/** Where a tracked ranking figure came from. */
+export type RankSource = 'search-console';
+
+/** Search Console connection for one business. */
+export interface SearchConsoleConnection {
+  siteUrl: string;
+  connectedAt: string;
+  lastFetchedAt?: string;
+  lastError?: string;
+}
+
+/** A keyword's position as reported by Search Console. */
+export interface KeywordPositionRecord {
+  keyword: string;
+  /** Average position over the reporting window. Lower is better. */
+  position: number;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  windowDays: number;
 }

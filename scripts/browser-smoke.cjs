@@ -176,13 +176,18 @@ const PROBE = [
       await sleep(6000);
     }
 
-    const clicked = await evaluate(
-      '(function () { var b = document.getElementById(' +
-        JSON.stringify(TAB_ID) +
-        "); if (!b) return 'not found'; b.click(); return 'clicked'; })()"
-    );
-    console.log('--- tab ' + TAB_ID + ': ' + clicked + ' ---');
-    await sleep(3000);
+    // SV_TAB accepts a comma-separated list so a flow can be driven, e.g.
+    // "nav-tab-competitors,btn-check-rankings".
+    const targets = TAB_ID.split(',').map((s) => s.trim()).filter(Boolean);
+    for (const target of targets) {
+      const clicked = await evaluate(
+        '(function () { var b = document.getElementById(' +
+          JSON.stringify(target) +
+          "); if (!b) return 'not found'; b.click(); return 'clicked'; })()"
+      );
+      console.log('--- click ' + target + ': ' + clicked + ' ---');
+      await sleep(3000);
+    }
 
     const state = await evaluate(PROBE);
     try {
@@ -196,6 +201,18 @@ const PROBE = [
     } catch {
       console.log('  probe returned:', state);
       crashed = true;
+    }
+
+    // Optional targeted assertion: set SV_PROBE to any JS expression. The
+    // result is printed and a boolean false fails the run, so a specific piece
+    // of UI can be checked without reading the whole page.
+    const probeExpr = process.env.SV_PROBE;
+    if (probeExpr) {
+      const probeResult = await evaluate(probeExpr);
+      console.log('');
+      console.log('--- SV_PROBE ---');
+      console.log('  ' + probeResult);
+      if (probeResult === false || probeResult === 'false') crashed = true;
     }
 
     console.log('');

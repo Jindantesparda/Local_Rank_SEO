@@ -18,7 +18,7 @@
 - **Subscriptions** — Free / Growth ($19/mo) / Agency ($79/mo) with server-side plan enforcement.
 - **Payments** — Paynow gateway (EcoCash, OneMoney, Visa/Mastercard) with webhook verification and sandbox mode for testing.
 - **Competitor comparison** — crawl competitor websites with the same engine, score them on the same 100-point scale, and see exactly where you are behind or ahead.
-- **Search visibility** — real "who is showing up above you" results for local keywords (requires a Google Programmable Search key; never faked).
+- **Search visibility** — real "who is showing up above you" results for local keywords, from the Brave Search index (clearly labelled as not Google; never faked).
 - **Keyword rank tracking** — save the keywords that matter and record where you appear on each scheduled check, with email alerts when a position drops 3 or more places or falls out of the top 10.
 - **Why visitors are likely leaving** — inferred from the pages themselves (response time, mobile viewport, script count, HTML size, contact/click-to-call friction, thin content). Clearly labelled as inferred: no analytics, bounce rate or session data is used unless the client connects their own.
 - **Measured visitor behaviour (optional)** — connect Google Analytics 4 and the drop-off section switches to real bounce rates, engagement time, worst landing pages and mobile-vs-desktop gaps, compared against the client's own baseline.
@@ -41,7 +41,7 @@ Kept in the README on purpose so the gap between what the product *claims* and w
 | Password reset | 1-hour link; a completed reset invalidates every session |
 | Outbound email | Resend HTTP API — no SMTP, no extra dependency |
 | Automated monitoring | Growth weekly, Agency daily; honours each plan's audit allowance |
-| Keyword rank tracking | Positions over time, alerts on a 3+ place drop |
+| Keyword rank tracking | Google Search Console positions over time, alerts on a 3+ place drop |
 | Client-ready reports | Agency plan; branded, print-optimised, save as PDF |
 | Google Analytics 4 | Measured bounce, engagement, worst landing pages |
 | SQLite storage | Transactions, WAL, one-time importer from the old JSON files |
@@ -54,11 +54,12 @@ see the [credentials checklist](#credentials--api-keys--the-complete-checklist).
 
 | Feature | Needs |
 |---------|-------|
-| Google rankings + rank tracking | `GOOGLE_SEARCH_API_KEY` + `GOOGLE_SEARCH_ENGINE_ID` (free, 100 queries/day) |
+| Rank tracking (own site) | A Google service account + the Search Console API enabled, and the service account added as a user on the property. Free |
 | Live payments | Paynow Integration ID + Key, `PAYMENT_MODE=live` |
 | Email delivery | `RESEND_API_KEY` + a domain verified with Resend |
 | Measured visitor behaviour | `GA4_SERVICE_ACCOUNT_JSON` (free service account) |
 | AI-written wording | `GEMINI_API_KEY` (optional — deterministic fallbacks exist) |
+| Competitor search visibility | `BRAVE_SEARCH_API_KEY` (free: ~2,000 queries/month). Not Google results — see below |
 
 ### Not built yet
 
@@ -67,7 +68,6 @@ see the [credentials checklist](#credentials--api-keys--the-complete-checklist).
 | **Backups** | Nothing but a choice of interval and retention. `VACUUM INTO` gives consistent hot snapshots with no downtime | Small |
 | **Error tracking / alerting** | A Sentry DSN (free tier), or nothing if you accept a generic webhook. Stays dormant until configured | Small |
 | **Real footer pages** | About and Contact need your genuine business details. Privacy and Terms would be clearly-labelled drafts pending your own legal review; binding legal text cannot be generated for you | Small |
-| **Search Console integration** | A free Google service account. Cheap to add because it reuses the GA4 service-account and JWT code already in `server/ga4.ts` | Medium |
 | **Competitor change alerts** | Nothing. Reuses the existing monitoring scheduler and competitor store. Score-based alerts need no credentials at all | Medium |
 | **White-label reports / team seats** | Product decisions, not credentials: custom logo, whether to hide branding, how many seats, and whether that changes the pricing | Medium |
 | **Review-management signals** | Without Google Business Profile API access this could only be inferred from the site, which would be guesswork | Medium |
@@ -137,9 +137,10 @@ Copy `.env.example` to `.env` and fill in the values.
 | `PAYMENT_CALLBACK_URL` | No | `http://localhost:3000/api/billing` | Base URL used for Paynow return/result URLs. |
 | `PORT` | No | `3000` | Port the server listens on. Hosts like Render/Railway set this automatically. |
 | `DATA_DIR` | No | `<cwd>/data` | Where accounts/payments/workspaces are stored. Point at a mounted disk in production. |
-| `GOOGLE_SEARCH_API_KEY` | No | empty | Enables "who is showing up above you" rankings. Google Custom Search JSON API key. |
-| `GOOGLE_SEARCH_ENGINE_ID` | No | empty | Google Programmable Search Engine ID (`cx`) used with the key above. |
-| `GOOGLE_SEARCH_BASE_URL` | No | Google's endpoint | Override the Custom Search endpoint (proxy, or a stub while testing). |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | For GA4 / rank tracking | empty | Google service-account JSON. Covers both Analytics and Search Console. |
+| `BRAVE_SEARCH_API_KEY` | No | empty | Enables "who is showing up above you". Brave's index — **not** Google results. |
+| `GOOGLE_SEARCH_API_KEY` | Deprecated | empty | Legacy Custom Search. Only works with a pre-existing whole-web engine; sunset 1 Jan 2027. |
+| `GOOGLE_SEARCH_ENGINE_ID` | Deprecated | empty | Programmable Search Engine ID (`cx`) for the legacy key above. |
 | `RESEND_API_KEY` | For email | empty | Enables confirmation emails, password reset and monitoring alerts. |
 | `EMAIL_FROM` | With Resend | `onboarding@resend.dev` | Sender address. Must be on a domain verified with Resend to reach anyone but you. |
 | `GA4_SERVICE_ACCOUNT_JSON` | For analytics | empty | Enables measured visitor behaviour (bounce rate, engagement, landing pages). |
@@ -164,7 +165,8 @@ order that gives you the most value first.
 |---|---------|-----------|---------|------------|------|
 | 1 | **Email** | `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL` | Confirmation emails, password reset, monitoring alerts | Messages are logged, not sent. Outside production the link is returned as `devLink` so flows still test locally | Free tier |
 | 2 | **Live payments** | `PAYNOW_INTEGRATION_ID`, `PAYNOW_INTEGRATION_KEY`, `PAYMENT_MODE=live`, `APP_URL` | Real EcoCash / OneMoney / card payments | Sandbox simulation — the full checkout → webhook → activation flow, no real money | Paynow transaction fees |
-| 3 | **Search rankings + rank tracking** | `GOOGLE_SEARCH_API_KEY`, `GOOGLE_SEARCH_ENGINE_ID` | "Who is showing up above you", plus saved keywords tracked over time with drop alerts | Reports "not connected" and the track controls stay hidden. Competitor **score** comparison still works fully | Free — 100 queries/day |
+| 3 | **Rank tracking** | Google Search Console API + the service account from item 2 | Real average Google position per keyword, plus clicks and impressions | Shows "Connect Search Console" instead of a number. Competitor **score** comparison still works fully | Free |
+| 3b | **Competitor search visibility** (optional) | `BRAVE_SEARCH_API_KEY` | "Who is showing up above you" | Reports "not connected". Everything else still works | Free — ~2,000 queries/month |
 | 4 | **Measured visitor behaviour** | `GA4_SERVICE_ACCOUNT_JSON` | Real bounce rate, engagement time, worst landing pages, mobile gaps | The analytics panel does not render; drop-off stays honestly inferred | Free |
 | 5 | **AI wording** | `GEMINI_API_KEY` | AI-written recommendations and copilot answers | Deterministic recommendations — same issues, plainer wording | Free tier available |
 | 6 | **Persistence** | `DATA_DIR` + a mounted volume | Accounts, payments and audits survive restarts and redeploys | Everything is lost when the container is replaced | Host-dependent |
@@ -221,28 +223,37 @@ will succeed at Paynow but the plan will not activate. Watch the server log for 
 
 ---
 
-### 3. Search rankings — Google Programmable Search
+### 3. Rank tracking — Google Search Console (recommended)
 
-Used by: the "Who is showing up above you" panel in the Competitors tab.
+Used by: the **Keyword rank tracking** panel in the Competitors tab.
 
-1. Create a search engine at
-   [programmablesearchengine.google.com](https://programmablesearchengine.google.com).
-2. In its settings, turn **ON** "Search the entire web". Without this the engine only searches
-   sites you listed, and rankings come back empty.
-3. Copy the **Search engine ID** (`cx`).
-4. Enable the **Custom Search API** at
-   [console.cloud.google.com](https://console.cloud.google.com) and create an API key.
-5. Set:
-   ```bash
-   GOOGLE_SEARCH_API_KEY="your-api-key"
-   GOOGLE_SEARCH_ENGINE_ID="your-cx-id"
-   ```
+This reuses the **same service account as Google Analytics** — see item 2. Enable the
+**Google Search Console API** on the same Cloud project, then add the service-account address as a
+user on the Search Console property (**Settings → Users and permissions → Add user**). The app shows
+you the exact address to add.
 
-**Verify it works:** `curl https://your-domain.com/api/competitors/config` should report
-`"serpConfigured": true`. Google's free tier is 100 queries per day; quota errors are surfaced with
-a hint rather than a generic failure.
+**Verify it works:** connect the property from the app; it is checked against Google before saving,
+so a wrong property fails immediately with the reason. `curl /api/rankings/<businessId>/connection`
+reports `serviceAccountConfigured: true`.
 
----
+**Why not search Google directly:** the Custom Search JSON API is closed to new customers and is
+discontinued on 1 January 2027, and new Programmable Search Engines cannot search the entire web.
+See [Keyword rank tracking](#keyword-rank-tracking).
+
+### 4. Competitor search visibility — Brave Search (optional)
+
+Used by: the "Who is showing up above you" panel.
+
+Google no longer offers whole-web search to new projects, so this runs on Brave:
+
+1. Get a free key at [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/app/keys)
+   (about 2,000 queries a month).
+2. Set `BRAVE_SEARCH_API_KEY="your-key"` and restart.
+
+**Verify it works:** `/api/competitors/config` should report `"serpSource": "brave"`.
+
+> Results are labelled **"Brave Search index — not Google"** in the UI and in the API response.
+> Brave has its own independent index; a Brave position is not a Google position.
 
 ### 4. Measured visitor behaviour — Google Analytics 4
 
@@ -338,9 +349,6 @@ stay at "first check pending" for longer than the plan interval, the cron is not
 | Feature | Will need | Notes |
 |---------|-----------|-------|
 | Google Business Profile insights | Google Business Profile API access | Requires an access request to Google; the biggest remaining local-SEO gap |
-| Google Search Console data | Search Console API + service account | Would replace inferred impressions with real clicks, queries and coverage errors |
-| Google Business Profile insights | Google Business Profile API access | Requires an access request to Google; the biggest remaining local-SEO gap |
-| Google Search Console data | Search Console API + service account | Would replace inferred impressions with real clicks and queries |
 
 ---
 
@@ -433,83 +441,109 @@ come back.
 
 ### 2. Search visibility — "who is showing up above you" (optional)
 
-This shows which websites rank above you for a local keyword (e.g.
-`Restaurant in Harare`). It uses the **Google Programmable Search / Custom Search JSON API**,
-so we never invent rankings.
+This shows which websites rank above you for a local keyword (e.g. `Restaurant in Harare`), and
+where you appear.
+
+**It uses the Brave Search index, not Google.** Google no longer offers whole-web search to new
+projects — the Custom Search JSON API is closed to new customers and is discontinued on
+1 January 2027, and newly created Programmable Search Engines cannot search the entire web. Rather
+than quietly substituting one index for another, the app labels results as coming from Brave and
+states plainly that they are not Google rankings.
 
 To enable it:
 
-1. In Google Cloud, enable the **Custom Search API** for your project:
-   https://console.cloud.google.com/apis/library/customsearch.googleapis.com
-2. Create an **API key**: https://console.cloud.google.com/apis/credentials
-   (leave it unrestricted, or restrict it by IP — an HTTP-referrer restriction will block a
-   server-side call and produce a 403).
-3. Create a **Programmable Search Engine**:
-   https://programmablesearchengine.google.com/controlpanel/create
-   and turn on **"Search the entire web"**. If you skip this, results are limited to a site list
-   you provide, and your own domain will never appear.
-4. Copy the search engine ID (the `cx` value) from that control panel.
-5. Set the env vars:
+1. Create a free API key at <https://api-dashboard.search.brave.com/app/keys> (about 2,000 queries a
+   month on the free tier).
+2. Set `BRAVE_SEARCH_API_KEY="your-key"` and restart.
+3. Check `/api/competitors/config` reports `"serpSource": "brave"`.
 
-```bash
-GOOGLE_SEARCH_API_KEY=your-key
-GOOGLE_SEARCH_ENGINE_ID=your-cx
-```
+If you have a **pre-existing** whole-web Programmable Search Engine, the legacy
+`GOOGLE_SEARCH_API_KEY` + `GOOGLE_SEARCH_ENGINE_ID` variables still work and take second priority —
+but that path ends with the 2027 sunset.
 
-6. Restart the server. The Competitors tab will now return real top-10 results, mark
-   your domain with a **YOU** badge, and tell you how many sites are above you.
-
-Optional extras:
-
-```bash
-# Point the lookup at a proxy/gateway, or at a stub while testing.
-GOOGLE_SEARCH_BASE_URL=https://www.googleapis.com/customsearch/v1
-```
-
-> Without these keys the tab clearly reports "ranking data is not connected yet", with the
-> setup steps, instead of showing fake positions. The score comparison above still works.
-> If Google rejects the key the error is surfaced verbatim, with a hint about the usual
-> causes (API not enabled, referrer restriction, quota reached).
-
----
+Everything else on the page, including the competitor **score** comparison, needs none of this.
 
 ## Keyword rank tracking
 
-Track the searches that actually matter to a business and watch where it sits over time.
+Track the searches that matter and watch where the site sits over time, with an email alert when a
+position drops.
 
-1. Run a ranking check in the Competitors tab ("Check rankings").
-2. Press **Track "…"** on the keyword you care about — the first position is recorded immediately.
-3. Every scheduled monitoring pass re-checks it and stores a snapshot.
+**Positions come from Google Search Console**, which reports the average position Google actually
+ranked the site at, alongside clicks and impressions.
 
-**Requires the Google Custom Search credentials** (`GOOGLE_SEARCH_API_KEY` +
-`GOOGLE_SEARCH_ENGINE_ID` — see the [credentials checklist](#credentials--api-keys--the-complete-checklist)).
-Without them the tracking controls do not appear at all.
+### Why not search Google directly
 
-### When an alert is sent
+This used to work by querying Google search results. As of September 2026 that is no longer possible
+for a new project, and it is worth understanding why before trying to set it up:
 
-A drop email goes out when the position moves **3 or more places**, or when the site
-**falls out of the top 10** entirely. Smaller moves are recorded in the history but do not send
-mail — that is normal day-to-day jitter, and emailing about it trains people to ignore alerts.
+| Option | Status |
+|--------|--------|
+| **Custom Search JSON API** + Programmable Search Engine | **Closed to new customers.** Google's notice: "no longer available to new customers. Existing customers can continue to use the API until January 1, 2027." Discontinued after that. |
+| **"Search the entire web"** on a new engine | **Removed by Google.** New engines are site-restricted, so they cannot find where a domain ranks across the web at all. |
+| **Bing Web Search API** | **Retired August 2025.** |
+| **Gemini grounding with Google Search** | Needs a paid tier — a brand-new key gets `429 RESOURCE_EXHAUSTED` on the first grounded call. It also returns unordered chunks, not a ranked list, so it cannot produce a trustworthy position. |
+| **Vertex AI Search** | Google's official migration target, but it is enterprise *site* search, not a rank tracker. |
 
-### Honesty rules
+**There is currently no Google API that returns whole-web Google SERPs.** The Google-supported way to
+get real Google position data is the Search Console API, which is what this uses.
 
-- Positions come only from real search results. A failed check is stored with its error, never as
-  a position, so a Google outage cannot look like a ranking collapse.
-- Not appearing in the top results is stored as `null` and shown as *"Not in top 10"* — not as a
-  drop to last place.
-- A drop is only ever reported when there are two real positions to compare.
-- If the site *enters* the results, that is recorded as an improvement, not a drop.
+### Setting it up
 
-### Limits
+It uses the **same service account as Google Analytics** — if GA4 is already connected there is
+nothing new to create.
 
-| Limit | Value | Why |
-|-------|-------|-----|
-| Keywords per business | 5 | Keeps the daily query count inside Google's free tier |
-| History kept | 60 checks per keyword | Roughly a year of weekly checks |
-| Plan requirement | Growth and Agency | Free plans have no scheduled checks to attach to |
-| Pacing | One query every 600ms | Never bursts through the daily quota |
+1. In Google Cloud, enable the **Google Search Console API** on the project.
+2. In [Search Console](https://search.google.com/search-console) → **Settings → Users and
+   permissions → Add user**, add the service-account address (the app shows you the exact address,
+   and it is the same one used for GA4).
+3. In the app, open **Competitors → Keyword rank tracking**, enter the property, and press
+   **Connect Search Console**. The property is verified against Google before it is saved, so a typo
+   fails immediately instead of looking connected.
+
+The property string must match Search Console exactly. A bare domain is treated as a domain property
+(`sc-domain:example.com`); a full URL keeps a trailing slash (`https://example.com/`), which Search
+Console requires and is the usual reason a correct-looking property returns 404.
+
+### What a position means here
+
+Being explicit about this matters more than the number itself:
+
+- it is an **average position over the last 28 days**, not a live SERP rank, so it can be fractional
+- it only covers queries the site **already received impressions for** — a keyword nobody searches for
+  has no position, and the app says *"No data yet"* rather than inventing one
+- Google publishes this **2-3 days behind**
+- it is the client's **own** site: Search Console can never report a competitor's position
+
+### Alerts
+
+A drop email goes out when the position moves **3 or more places**. Smaller movement is recorded but
+does not send mail — Search Console positions are averages, so a 0.9 place change is noise. A failed
+lookup is stored with its reason and never treated as a ranking collapse.
+
+Up to **5 keywords per business**, with 60 snapshots kept per keyword (about a year of weekly checks).
+One API call covers every tracked keyword, so cost does not scale with keyword count.
 
 ---
+
+## Competitor search visibility ("who is showing up above you")
+
+This needs a whole-web search index, and Google no longer offers one (see the table above). It
+therefore runs on **Brave Search**, which has its own independent index.
+
+> **A Brave position is not a Google position.** Results are labelled *"Brave Search index — not
+> Google"* both on the badge and in the response message, because presenting one index's ranking as
+> another's would be a lie.
+
+Set `BRAVE_SEARCH_API_KEY` (free tier: about 2,000 queries a month) from
+<https://api-dashboard.search.brave.com/app/keys>. Providers are pluggable — Brave takes priority,
+and a grandfathered Google Custom Search engine still works until the 2027 sunset. The app reports
+which source it used via `/api/competitors/config`.
+
+Everything else on the Competitors page, including the score comparison, works with none of this
+configured.
+
+---
+
 ## Plans and limits
 
 | Plan | Price | Audits / month | Businesses | Crawl depth |

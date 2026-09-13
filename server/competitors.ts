@@ -58,13 +58,17 @@ function normalizeUrl(input: string): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
-export function toDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./i, '').toLowerCase();
-  } catch {
-    return '';
-  }
-}
+// Search providers live in server/serpProviders.ts so the source of a
+// position is always explicit. Re-exported here for existing callers.
+import {
+  toDomain,
+  serpConfigured,
+  fetchSerp,
+  activeSerpSource,
+  sourceLabel,
+} from './serpProviders';
+
+export { toDomain, serpConfigured, fetchSerp, activeSerpSource, sourceLabel };
 
 function namesFromUrl(url: string): string {
   const domain = toDomain(url);
@@ -149,85 +153,21 @@ async function mapWithLimit<T, R>(
   return results;
 }
 
-export function serpConfigured(): boolean {
-  return Boolean(process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_ENGINE_ID);
-}
-
-export async function fetchSerp(query: string, yourDomain: string): Promise<SerpResponse> {
-  const apiKey = process.env.GOOGLE_SEARCH_API_KEY as string;
-  const cx = process.env.GOOGLE_SEARCH_ENGINE_ID as string;
-
-  const params = new URLSearchParams({
-    key: apiKey,
-    cx,
-    q: query,
-    num: '10',
-  });
-
-  // Base URL is overridable so the ranking path can be tested against a stub
-  // (and so a proxy/enterprise gateway can be used) without touching code.
-  const baseUrl =
-    process.env.GOOGLE_SEARCH_BASE_URL || 'https://www.googleapis.com/customsearch/v1';
-
-  const res = await fetch(`${baseUrl}?${params.toString()}`);
-  if (!res.ok) {
-    const text = await res.text();
-    // Turn the common Google failures into something actionable.
-    let hint = '';
-    if (res.status === 400 || res.status === 403) {
-      hint =
-        ' Check that the Custom Search API is enabled for this key, and that the key has no HTTP-referrer restriction blocking a server-side call.';
-    } else if (res.status === 429) {
-      hint = ' The daily query quota for this key has been reached — try again tomorrow.';
-    }
-    throw new Error(
-      `Google Search API error (${res.status}).${hint} ${text.slice(0, 200)}`.trim()
-    );
-  }
-
-  const data = (await res.json()) as {
-    items?: Array<{ title?: string; link?: string; displayLink?: string }>;
-  };
-
-  const results: SerpResult[] = (data.items || []).map((item, index) => {
-    const url = item.link || '';
-    const domain = toDomain(url) || (item.displayLink || '').replace(/^www\./i, '');
-    return {
-      position: index + 1,
-      title: item.title || url,
-      url,
-      domain,
-      isYou: Boolean(yourDomain) && domain === yourDomain,
-    };
-  });
-
-  const yourIndex = results.findIndex((r) => r.isYou);
-  const yourPosition = yourIndex >= 0 ? results[yourIndex].position : null;
-  const aboveYou = yourIndex >= 0 ? yourIndex : results.length;
-
-  return {
-    configured: true,
-    query,
-    results,
-    yourDomain,
-    yourPosition,
-    aboveYou,
-    message:
-      yourPosition === null
-        ? results.length > 0
-          ? `You are not in the top ${results.length} results for this search.`
-          : 'No results returned for this search.'
-        : `You appear at position ${yourPosition}.`,
-  };
-}
 
 export function createCompetitorsRouter(): Router {
   const router = Router();
 
-  // Public: tell the client whether SERP data is available.
+  // Public: tell the client whether SERP data is available, and from where.
   router.get('/config', (_req, res) => {
+    const source = activeSerpSource();
     res.json({
-      serpConfigured: serpConfigured(),
+      serpConfigured: source !== 'none',
+      /**
+       * Which index the "who shows up above you" results come from. Brave has
+       * its own index, so these are NOT Google positions and the UI must say so.
+       */
+      serpSource: source,
+      serpSourceLabel: sourceLabel(source),
       competitorAnalysis: true,
       maxCompetitors: MAX_COMPETITORS,
     });
@@ -314,8 +254,10 @@ export function createCompetitorsRouter(): Router {
         yourDomain,
         yourPosition: null,
         aboveYou: 0,
+        source: 'none',
+        sourceLabel: sourceLabel('none'),
         message:
-          'Search ranking data is not connected yet. Add GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID to enable it.',
+          'Whole-web search is not connected. Google no longer offers this for new projects, so add a Brave Search API key (BRAVE_SEARCH_API_KEY) to enable competitor search visibility.',
       };
       return res.json(response);
     }

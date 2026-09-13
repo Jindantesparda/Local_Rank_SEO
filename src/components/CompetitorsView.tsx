@@ -56,10 +56,14 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
   const [serp, setSerp] = useState<SerpResponse | null>(null);
   const [rankings, setRankings] = useState<{
     configured: boolean;
+    source?: string;
+    sourceLabel?: string;
+    positionNote?: string;
     maxKeywords: number;
     keywords: Array<{
       keyword: string;
       latestPosition: number | null;
+      latestError?: string | null;
       checks: number;
       movement: {
         previous: number | null;
@@ -74,6 +78,17 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
   const [trackingKeyword, setTrackingKeyword] = useState(false);
   const [rankingBusy, setRankingBusy] = useState(false);
   const [trackNotice, setTrackNotice] = useState<string | null>(null);
+  const [gsc, setGsc] = useState<{
+    serviceAccountConfigured: boolean;
+    serviceAccountEmail: string | null;
+    connected: boolean;
+    siteUrl: string | null;
+    lastError: string | null;
+    suggestedSiteUrl: string;
+  } | null>(null);
+  const [gscInput, setGscInput] = useState('');
+  const [gscBusy, setGscBusy] = useState(false);
+  const [gscError, setGscError] = useState<string | null>(null);
   const [serpLoading, setSerpLoading] = useState(false);
 
   const maxCompetitors = userTier === 'free' ? 3 : 10;
@@ -89,6 +104,7 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
   // Load any keywords already being tracked for this business.
   useEffect(() => {
     loadRankings();
+    loadGscConnection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [business?.id, token]);
 
@@ -253,6 +269,64 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
     }
   };
 
+  async function loadGscConnection() {
+    if (!token || userTier === 'free') return;
+    try {
+      const res = await fetch(`/api/rankings/${business.id}/connection`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setGsc(data);
+      if (!gscInput) setGscInput(data.siteUrl || data.suggestedSiteUrl || '');
+    } catch {
+      /* advisory only */
+    }
+  }
+
+  async function connectGsc() {
+    if (!token) return;
+    const siteUrl = gscInput.trim();
+    if (!siteUrl) return;
+    setGscBusy(true);
+    setGscError(null);
+    try {
+      const res = await fetch(`/api/rankings/${business.id}/connection`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not connect that property.');
+      setGsc((prev) => (prev ? { ...prev, connected: true, siteUrl: data.siteUrl } : prev));
+      setTrackNotice(`Connected ${data.siteUrl} to Google Search Console.`);
+      await loadRankings();
+    } catch (err) {
+      setGscError(err instanceof Error ? err.message : 'Could not connect that property.');
+    } finally {
+      setGscBusy(false);
+    }
+  }
+
+  async function disconnectGsc() {
+    if (!token) return;
+    setGscBusy(true);
+    setGscError(null);
+    try {
+      await fetch(`/api/rankings/${business.id}/connection`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setGsc((prev) => (prev ? { ...prev, connected: false, siteUrl: null } : prev));
+      setRankings(null);
+      setTrackNotice(null);
+    } catch {
+      /* ignore */
+    } finally {
+      setGscBusy(false);
+    }
+  }
+
   // Declared as a function (not a const arrow) on purpose: the effect above
   // runs on every tier, but the Free and empty-state branches return BEFORE
   // this point. A const would still be in its temporal dead zone when that
@@ -362,6 +436,8 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
       setSerpLoading(false);
     }
   };
+
+  const gscConnected = Boolean(gsc?.connected);
 
   const okCompetitors = competitors.filter((c) => c.status === 'ok');
 
@@ -652,14 +728,16 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
             onClick={runSerp}
             disabled={serpLoading}
             className="btn btn-dark btn-md flex items-center justify-center"
+            id="btn-check-rankings"
           >
             {serpLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
             {serpLoading ? 'Checking…' : 'Check rankings'}
           </button>
         </div>
 
-        {/* Rank tracking — records positions over time so drops can be alerted on */}
-        {serp?.configured && keyword.trim() && (
+        {/* Rank tracking — positions come from Google Search Console, so the
+            tracking controls only appear once a property is connected. */}
+        {gscConnected && keyword.trim() && (
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => trackKeyword(keyword.trim())}
@@ -675,7 +753,7 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
               <span>{trackingKeyword ? 'Tracking…' : `Track “${keyword.trim()}”`}</span>
             </button>
             <span className="text-[11px] text-slate-400">
-              Saves the position and re-checks it on every scheduled run.
+              Saves the Google position and re-checks it on every scheduled run.
             </span>
           </div>
         )}
@@ -683,6 +761,92 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
         {trackNotice && (
           <div className="p-3 rounded-xl bg-lilac-50 border border-slate-200 text-xs text-slate-700">
             {trackNotice}
+          </div>
+        )}
+
+        {/*
+          Rank tracking source. Positions come from Google Search Console now:
+          the Custom Search API that used to supply them is closed to new
+          customers and discontinued 1 Jan 2027, and Google removed whole-web
+          search from newly created engines.
+        */}
+        {gsc && !gsc.connected && (
+          <div className="pt-3 mt-1 border-t border-slate-100">
+            <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <LineChart className="w-3.5 h-3.5 text-brand-500" />
+              Keyword rank tracking
+            </h4>
+            <p className="mt-1.5 text-[11px] text-slate-600 leading-relaxed">
+              Positions come from <strong>Google Search Console</strong> — the real average position
+              Google reports for your site, with clicks and impressions alongside it. Connect the
+              property below to start tracking.
+            </p>
+
+            {!gsc.serviceAccountConfigured ? (
+              <div className="mt-2.5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
+                This server has no Google service account configured yet, so Search Console cannot be
+                connected. Add <code className="font-mono">GOOGLE_SERVICE_ACCOUNT_JSON</code> — the
+                same service account used for Google Analytics — and restart.
+              </div>
+            ) : (
+              <>
+                <div className="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
+                  <strong className="text-slate-800">One step before you connect:</strong> in Search
+                  Console go to <em>Settings → Users and permissions → Add user</em> and add this
+                  address.
+                  {gsc.serviceAccountEmail && (
+                    <div className="mt-1.5 font-mono text-[10px] bg-white rounded-lg border border-slate-200 p-2 break-all">
+                      {gsc.serviceAccountEmail}
+                    </div>
+                  )}
+                </div>
+                <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={gscInput}
+                    onChange={(e) => setGscInput(e.target.value)}
+                    placeholder="sc-domain:example.com"
+                    className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  />
+                  <button
+                    onClick={connectGsc}
+                    disabled={gscBusy}
+                    className="btn btn-primary btn-md flex items-center justify-center"
+                    id="btn-connect-gsc"
+                  >
+                    {gscBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    <span>{gscBusy ? 'Verifying…' : 'Connect Search Console'}</span>
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[10px] text-slate-400">
+                  Use the exact property string from Search Console. A bare domain is treated as a
+                  domain property; a full URL keeps its trailing slash.
+                </p>
+              </>
+            )}
+
+            {gscError && (
+              <div className="mt-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-[11px] text-rose-800 leading-relaxed">
+                {gscError}
+              </div>
+            )}
+          </div>
+        )}
+
+        {gsc?.connected && (
+          <div className="pt-3 mt-1 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] text-slate-500">
+              Rank data from <strong className="text-slate-700">Google Search Console</strong>
+              {gsc.siteUrl ? <> · <span className="font-mono text-[10px]">{gsc.siteUrl}</span></> : null}
+            </span>
+            <button
+              onClick={disconnectGsc}
+              disabled={gscBusy}
+              className="btn btn-ghost btn-xs"
+              id="btn-disconnect-gsc"
+            >
+              Disconnect
+            </button>
           </div>
         )}
 
@@ -715,7 +879,7 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
                     <span className="font-semibold text-slate-700 truncate">{kw.keyword}</span>
                     <div className="flex items-center gap-2.5 shrink-0">
                       <span className="font-bold text-slate-900">
-                        {kw.latestPosition === null ? 'Not in top 10' : `#${kw.latestPosition}`}
+                        {kw.latestPosition === null ? 'No data yet' : `#${kw.latestPosition}`}
                       </span>
                       {!isNew && move && (
                         <span
@@ -755,76 +919,67 @@ export const CompetitorsView: React.FC<CompetitorsViewProps> = ({
               })}
             </div>
             <p className="text-[10px] text-slate-400">
-              Positions are recorded from live search results on each scheduled check. A drop of 3 or
-              more places triggers an email alert.
+              {rankings?.positionNote ||
+                'Average position as reported by Google Search Console. A drop of 3 or more places triggers an email alert.'}
             </p>
           </div>
         )}
 
         {/*
-          Show the setup card whenever ranking data is unavailable — including
-          after the user clicks "Check rankings", which previously set `serp`
-          and hid this notice while rendering no results at all.
+          Whole-web search is no longer available from Google for new projects,
+          so this now runs on Brave and says so. The index matters: a Brave
+          position is not a Google position, and presenting it as one would be
+          a lie.
         */}
-        {serpConfigured === false && !serp?.configured && (
+        {!serpConfigured && (
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
-            <strong className="text-slate-800">Ranking data is not connected yet.</strong>{' '}
-            {serp?.message || 'To show real "who ranks above you" results, connect a Google Programmable Search key.'}
-            {serp?.query && (
-              <>
-                {' '}
-                The search <em>“{serp.query}”</em> could not be checked.
-              </>
-            )}
+            <strong className="text-slate-800">Competitor search visibility is not connected.</strong>{' '}
+            {serp?.message ||
+              'To show which sites outrank you, this needs a whole-web search provider.'}
+            <p className="mt-2">
+              Google used to provide this, but the Custom Search JSON API is closed to new customers
+              and is discontinued on 1 January 2027, and new Programmable Search Engines can no
+              longer search the entire web. So this uses{' '}
+              <strong className="text-slate-800">Brave Search</strong> instead, which has its own
+              independent index.
+            </p>
             <ol className="mt-3 space-y-1.5 list-decimal list-inside text-slate-600">
               <li>
-                In Google Cloud, enable the{' '}
+                Create a free API key at{' '}
                 <a
-                  href="https://console.cloud.google.com/apis/library/customsearch.googleapis.com"
+                  href="https://api-dashboard.search.brave.com/app/keys"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-semibold text-sky-700 hover:underline"
                 >
-                  Custom Search API
+                  Brave Search API
                 </a>{' '}
-                and create an API key in{' '}
-                <a
-                  href="https://console.cloud.google.com/apis/credentials"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-sky-700 hover:underline"
-                >
-                  Credentials
-                </a>
-                .
+                (the free tier covers about 2,000 queries a month).
               </li>
               <li>
-                Create a search engine at{' '}
-                <a
-                  href="https://programmablesearchengine.google.com/controlpanel/create"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-sky-700 hover:underline"
-                >
-                  Programmable Search Engine
-                </a>{' '}
-                and turn on <strong>“Search the entire web”</strong> — otherwise results are
-                limited to sites you list, and your own site will never appear.
+                Add it to <code>.env</code> and restart the server:
+                <div className="mt-1.5 font-mono text-[10px] bg-white rounded-lg border border-slate-200 p-2">
+                  BRAVE_SEARCH_API_KEY=your-key
+                </div>
               </li>
-              <li>Copy the search engine ID (the <code>cx</code> value) from that control panel.</li>
-              <li>Add both values to <code>.env</code> and restart the server:</li>
             </ol>
-            <div className="mt-2 font-mono text-[10px] bg-white rounded-lg border border-slate-200 p-2">
-              GOOGLE_SEARCH_API_KEY=your-key
-              <br />
-              GOOGLE_SEARCH_ENGINE_ID=your-cx
-            </div>
-            Until then, the competitor score comparison above still works.
+            <p className="mt-2">
+              Results will be labelled as coming from the Brave index — they are not Google
+              rankings. Everything else on this page, including the score comparison above, works
+              without any of this.
+            </p>
           </div>
         )}
 
         {serp && serp.configured && (
           <div className="space-y-3">
+            {serp.sourceLabel && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                <Globe className="w-3 h-3" />
+                {serp.sourceLabel}
+                {serp.source === 'brave' ? ' — not Google' : ''}
+              </span>
+            )}
             <p className="text-xs font-semibold text-slate-700">{serp.message}</p>
 
             <div className="space-y-1.5">

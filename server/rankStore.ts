@@ -19,10 +19,22 @@ const MAX_HISTORY = 60;
 
 export interface RankSnapshot {
   checkedAt: string;
-  /** 1-based position, or null when the site was not in the top results. */
+  /**
+   * Search Console reports an average position over the window, so this can be
+   * fractional (e.g. 4.3). Null means no position was available.
+   */
   position: number | null;
-  /** Total organic results Google reported for the query. */
+  /**
+   * Impressions for the query in the reporting window. Kept in the field the
+   * old SERP provider used for result count, so stored history stays readable.
+   */
   resultsCount: number;
+  /** Clicks from Search Console, when the source provides them. */
+  clicks?: number;
+  /** Impressions from Search Console, when the source provides them. */
+  impressions?: number;
+  /** Which data source produced this snapshot. */
+  source?: 'search-console';
   /** Set when the check itself failed, so the gap is explainable. */
   error?: string;
 }

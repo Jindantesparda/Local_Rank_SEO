@@ -1,5 +1,11 @@
 import { Business } from '../src/types';
-import { fetchSerp, serpConfigured, toDomain } from './competitors';
+import {
+  fetchKeywordPosition,
+  fetchKeywordPositions,
+  isSearchConsoleConfigured,
+  KeywordPosition,
+} from './searchConsole';
+import { getConnection, recordFetch } from './searchConsoleStore';
 import {
   getRankingRecord,
   recordSnapshot,
@@ -10,49 +16,89 @@ import {
 /**
  * Keyword rank tracking.
  *
- * The search API returns the results for a query; we record where the client's
- * domain appears. Snapshots accumulate so movement can be compared over time —
- * which is what makes a rank-drop alert possible at all.
+ * Positions come from **Google Search Console**, which reports the average
+ * position Google actually ranked the site at. Earlier versions used the
+ * Custom Search JSON API, which is closed to new customers and discontinued on
+ * 1 January 2027, and which cannot be used for whole-web search by a new
+ * project at all.
  *
- * Honesty rules baked in here:
- *   - a failed check stores an `error` snapshot, never a fake position
- *   - not appearing in the results is stored as `position: null` and is
- *     reported as "not in the top 10", not as a drop to last place
- *   - a drop is only reported when we have two real positions to compare
+ * Consequences worth being explicit about, because they change what a position
+ * means here:
+ *   - it is an AVERAGE over a window, not a point-in-time SERP rank
+ *   - only queries the site already received impressions for are available
+ *   - data lags by roughly 2-3 days
+ *   - it is the client's OWN site — competitors cannot come from Search Console
+ *
+ * Honesty rules, unchanged from before:
+ *   - a failed lookup stores an `error` snapshot, never a fake position
+ *   - "no impressions for this query" is a distinct outcome from "ranked badly"
+ *   - a drop is only reported when there are two real positions to compare
  */
+
+/** Search Console reporting window, in days. */
+const WINDOW_DAYS = 28;
 
 export interface RankCheckResult {
   keyword: string;
   position: number | null;
-  resultsCount: number;
+  clicks: number;
+  impressions: number;
   error?: string;
 }
 
+/** Is rank tracking usable for this business right now? */
+export function rankSourceStatus(userId: string, businessId: string): {
+  configured: boolean;
+  connected: boolean;
+  siteUrl: string | null;
+} {
+  const connection = getConnection(userId, businessId);
+  return {
+    configured: isSearchConsoleConfigured(),
+    connected: connection !== null,
+    siteUrl: connection?.siteUrl ?? null,
+  };
+}
+
 export async function checkKeyword(
-  business: Business,
+  userId: string,
+  businessId: string,
   keyword: string
 ): Promise<RankCheckResult> {
-  if (!serpConfigured()) {
+  const connection = getConnection(userId, businessId);
+  if (!connection) {
     return {
       keyword,
       position: null,
-      resultsCount: 0,
-      error: 'Search API is not configured on this server.',
+      clicks: 0,
+      impressions: 0,
+      error: 'Search Console is not connected for this business.',
     };
   }
 
   try {
-    const serp = await fetchSerp(keyword, toDomain(business.website));
+    const result = await fetchKeywordPosition(connection.siteUrl, keyword, WINDOW_DAYS);
+    if (!result) {
+      return {
+        keyword,
+        position: null,
+        clicks: 0,
+        impressions: 0,
+        error: `No Search Console impressions for this query in the last ${WINDOW_DAYS} days, so Google has no position to report yet.`,
+      };
+    }
     return {
       keyword,
-      position: serp.yourPosition,
-      resultsCount: serp.results.length,
+      position: result.position,
+      clicks: result.clicks,
+      impressions: result.impressions,
     };
   } catch (err) {
     return {
       keyword,
       position: null,
-      resultsCount: 0,
+      clicks: 0,
+      impressions: 0,
       error: err instanceof Error ? err.message : 'Rank check failed.',
     };
   }
@@ -115,9 +161,11 @@ export function detectMovement(keyword: TrackedKeyword): RankMovement | null {
 
   if (previous === null || current === null) return null;
 
-  const change = current - previous;
-  // Only call it a drop when it moved down by 3 or more places; small
-  // day-to-day jitter is normal and not worth an email.
+  // Rounded to one decimal: these are Search Console averages, and float
+  // subtraction otherwise surfaces as 5.499999999999999 in the UI.
+  const change = Math.round((current - previous) * 10) / 10;
+  // Only call it a drop when it moved down by 3 or more places. Search Console
+  // positions are averages, so small movement is noise.
   return {
     keyword: keyword.keyword,
     previous,
@@ -130,7 +178,9 @@ export function detectMovement(keyword: TrackedKeyword): RankMovement | null {
 
 /**
  * Re-check every tracked keyword for one business, storing a snapshot each time.
- * Returns the movements that are worth telling the user about.
+ *
+ * One API call covers all keywords (Search Console OR-s the filters), so this
+ * does not scale linearly with the number of tracked keywords.
  */
 export async function refreshTrackedKeywords(
   userId: string,
@@ -139,58 +189,81 @@ export async function refreshTrackedKeywords(
   const record = getRankingRecord(userId, business.id);
   if (record.keywords.length === 0) return { checked: 0, alerts: [], errors: 0 };
 
-  const alerts: RankMovement[] = [];
-  let checked = 0;
-  let errors = 0;
-
-  for (const tracked of record.keywords) {
-    const result = await checkKeyword(business, tracked.keyword);
-    checked += 1;
-    if (result.error) errors += 1;
-
-    // Snapshot the state *before* writing, so we can compare after.
-    const previousHistory = tracked.history;
-
-    recordSnapshot(userId, business.id, tracked.keyword, {
-      checkedAt: new Date().toISOString(),
-      position: result.position,
-      resultsCount: result.resultsCount,
-      error: result.error,
-    });
-
-    // Decide whether this particular check is alert-worthy.
-    const previousPosition = lastRealPosition(previousHistory);
-    if (!result.error && previousPosition !== undefined) {
-      if (previousPosition !== null && result.position === null) {
-        alerts.push({
-          keyword: tracked.keyword,
-          previous: previousPosition,
-          current: null,
-          change: null,
-          dropped: true,
-          fellOut: true,
-        });
-      } else if (
-        previousPosition !== null &&
-        result.position !== null &&
-        result.position - previousPosition >= 3
-      ) {
-        alerts.push({
-          keyword: tracked.keyword,
-          previous: previousPosition,
-          current: result.position,
-          change: result.position - previousPosition,
-          dropped: true,
-          fellOut: false,
-        });
-      }
-    }
-
-    // One query at a time, so we never burst through the daily quota.
-    await new Promise((r) => setTimeout(r, 600));
+  const connection = getConnection(userId, business.id);
+  if (!connection) {
+    return { checked: 0, alerts: [], errors: 0 };
   }
 
-  return { checked, alerts, errors };
+  const keywords = record.keywords.map((k) => k.keyword);
+  const previousByKeyword = new Map(keywords.map((k) => [k.toLowerCase(), record.keywords.find(
+    (kw) => kw.keyword.toLowerCase() === k.toLowerCase()
+  )]));
+
+  let positions: Map<string, KeywordPosition>;
+  try {
+    positions = await fetchKeywordPositions(connection.siteUrl, keywords, WINDOW_DAYS);
+    recordFetch(userId, business.id);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Rank check failed.';
+    recordFetch(userId, business.id, message);
+
+    // Record the failure against every keyword so the gap is explainable and
+    // the history shows a reason rather than a phantom drop.
+    for (const keyword of keywords) {
+      recordSnapshot(userId, business.id, keyword, {
+        checkedAt: new Date().toISOString(),
+        position: null,
+        resultsCount: 0,
+        error: message,
+      });
+    }
+    return { checked: keywords.length, alerts: [], errors: keywords.length };
+  }
+
+  const alerts: RankMovement[] = [];
+  let errors = 0;
+
+  for (const keyword of keywords) {
+    const result = positions.get(keyword.toLowerCase());
+
+    if (!result) {
+      errors += 1;
+      recordSnapshot(userId, business.id, keyword, {
+        checkedAt: new Date().toISOString(),
+        position: null,
+        resultsCount: 0,
+        error: `No Search Console impressions for this query in the last ${WINDOW_DAYS} days.`,
+      });
+      continue;
+    }
+
+    const previousHistory = previousByKeyword.get(keyword.toLowerCase())?.history || [];
+    const previousPosition = lastRealPosition(previousHistory);
+
+    recordSnapshot(userId, business.id, keyword, {
+      checkedAt: new Date().toISOString(),
+      position: Math.round(result.position * 10) / 10,
+      resultsCount: result.impressions,
+      clicks: result.clicks,
+      impressions: result.impressions,
+      source: 'search-console',
+    });
+
+    if (previousPosition === undefined) continue;
+
+    if (previousPosition !== null && result.position - previousPosition >= 3) {
+      alerts.push({
+        keyword,
+        previous: previousPosition,
+        current: Math.round(result.position * 10) / 10,
+        change: Math.round((result.position - previousPosition) * 10) / 10,
+        dropped: true,
+        fellOut: false,
+      });
+    }
+  }
+
+  return { checked: keywords.length, alerts, errors };
 }
 
 /** Compact trend for the UI: oldest → newest, gaps removed. */

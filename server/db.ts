@@ -227,7 +227,8 @@ export type DocNamespace =
   | 'competitors'
   | 'monitor'
   | 'analytics'
-  | 'rankings';
+  | 'rankings'
+  | 'searchconsole';
 
 export function docGet<T>(ns: DocNamespace, key: string): T | null {
   const row = getDb()

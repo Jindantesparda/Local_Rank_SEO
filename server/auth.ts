@@ -9,6 +9,7 @@ import { removeCompetitorData } from './competitorStore';
 import { removeMonitorData } from './monitorStore';
 import { removeAnalyticsData } from './analyticsStore';
 import { removeRankingData } from './rankStore';
+import { removeSearchConsoleData } from './searchConsoleStore';
 import {
   deleteUserCascade,
   insertUserIfEmailFree,
@@ -629,6 +630,7 @@ export function createAuthRouter(): Router {
       removeMonitorData(sessionUser.id);
       removeAnalyticsData(sessionUser.id);
       removeRankingData(sessionUser.id);
+      removeSearchConsoleData(sessionUser.id);
       return res.json({ ok: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete account';

@@ -1,156 +1,38 @@
-import crypto from 'crypto';
+import {
+  ANALYTICS_SCOPE,
+  getAccessToken as sharedGetAccessToken,
+  getServiceAccount,
+  isGoogleAuthConfigured,
+  serviceAccountEmail,
+} from './googleAuth';
 
 /**
  * Google Analytics 4 (Data API) client.
  *
- * Authentication uses a **service account**, so there is no interactive OAuth
- * dance and no per-user secret to store. The operator sets one credential:
- *
- *   GA4_SERVICE_ACCOUNT_JSON  the full service-account JSON key, or
- *   GA4_CLIENT_EMAIL + GA4_PRIVATE_KEY  the same values split up
- *
- * The client then adds that service-account address as a **Viewer** on their
- * GA4 property and enters the numeric property ID in the app.
+ * Authentication is shared with the Search Console client — see
+ * server/googleAuth.ts. One service account covers both: enable both APIs on a
+ * Cloud project, then add the service account address as a Viewer on the GA4
+ * property and as a user on the Search Console property.
  *
  * The JWT is signed with Node's built-in crypto (RS256), so this adds no
  * dependency. Endpoints can be pointed at a stub for testing.
  */
 
-const TOKEN_URL = process.env.GA4_OAUTH_URL || 'https://oauth2.googleapis.com/token';
 const API_BASE =
   process.env.GA4_API_BASE_URL || 'https://analyticsdata.googleapis.com/v1beta';
-const SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
 
-export interface ServiceAccount {
-  clientEmail: string;
-  privateKey: string;
-  projectId?: string;
-}
-
-interface CachedToken {
-  accessToken: string;
-  expiresAt: number;
-}
-
-let cachedToken: CachedToken | null = null;
-
-function normalisePrivateKey(key: string): string {
-  // Keys pasted into env vars often arrive with literal \n sequences.
-  return key.includes('\\n') ? key.replace(/\\n/g, '\n') : key;
-}
-
-export function getServiceAccount(): ServiceAccount | null {
-  const raw = process.env.GA4_SERVICE_ACCOUNT_JSON;
-  if (raw && raw.trim()) {
-    try {
-      const parsed = JSON.parse(raw) as {
-        client_email?: string;
-        private_key?: string;
-        project_id?: string;
-      };
-      if (parsed.client_email && parsed.private_key) {
-        return {
-          clientEmail: parsed.client_email,
-          privateKey: normalisePrivateKey(parsed.private_key),
-          projectId: parsed.project_id,
-        };
-      }
-    } catch {
-      console.warn('[ga4] GA4_SERVICE_ACCOUNT_JSON is not valid JSON');
-    }
-  }
-
-  const email = process.env.GA4_CLIENT_EMAIL;
-  const key = process.env.GA4_PRIVATE_KEY;
-  if (email && key) {
-    return { clientEmail: email, privateKey: normalisePrivateKey(key) };
-  }
-
-  return null;
-}
+export { getServiceAccount, serviceAccountEmail };
 
 export function isAnalyticsConfigured(): boolean {
-  return getServiceAccount() !== null;
+  return isGoogleAuthConfigured();
 }
 
-export function serviceAccountEmail(): string | null {
-  return getServiceAccount()?.clientEmail || null;
+/** Access token for the Analytics scope only. */
+export function getAccessToken(): Promise<string> {
+  return sharedGetAccessToken(ANALYTICS_SCOPE);
 }
 
-function base64url(input: Buffer | string): string {
-  return Buffer.from(input)
-    .toString('base64')
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-}
-
-/** Mint a signed JWT and trade it for an access token. */
-export async function getAccessToken(): Promise<string> {
-  const account = getServiceAccount();
-  if (!account) {
-    throw new Error('Google Analytics is not configured on this server.');
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  if (cachedToken && cachedToken.expiresAt - 60 > now) {
-    return cachedToken.accessToken;
-  }
-
-  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const claims = base64url(
-    JSON.stringify({
-      iss: account.clientEmail,
-      scope: SCOPE,
-      aud: TOKEN_URL,
-      iat: now,
-      exp: now + 3600,
-    })
-  );
-
-  const signingInput = `${header}.${claims}`;
-  const signer = crypto.createSign('RSA-SHA256');
-  signer.update(signingInput);
-  signer.end();
-
-  let signature: string;
-  try {
-    signature = base64url(signer.sign(account.privateKey));
-  } catch {
-    throw new Error(
-      'The Google service-account private key could not be read. Check GA4_PRIVATE_KEY / GA4_SERVICE_ACCOUNT_JSON.'
-    );
-  }
-
-  const assertion = `${signingInput}.${signature}`;
-
-  const res = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion,
-    }).toString(),
-  });
-
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Google rejected the service-account credentials (${res.status}). ${text}`);
-  }
-
-  const data = JSON.parse(text) as { access_token?: string; expires_in?: number };
-  if (!data.access_token) {
-    throw new Error('Google did not return an access token.');
-  }
-
-  cachedToken = {
-    accessToken: data.access_token,
-    expiresAt: now + (data.expires_in || 3600),
-  };
-  return cachedToken.accessToken;
-}
-
-interface DataApiRow {
+export interface DataApiRow {
   dimensionValues?: Array<{ value?: string }>;
   metricValues?: Array<{ value?: string }>;
 }
