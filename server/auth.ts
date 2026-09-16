@@ -11,6 +11,7 @@ import { removeAnalyticsData } from './analyticsStore';
 import { removeRankingData } from './rankStore';
 import { removeSearchConsoleData } from './searchConsoleStore';
 import {
+  StoredUser,
   deleteSession,
   deleteUserCascade,
   deleteUserSessions,
@@ -46,10 +47,7 @@ const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const TOKENS_FILE = path.join(DATA_DIR, 'tokens.json');
 
-interface UserRecord extends User {
-  passwordSalt: string;
-  passwordHash: string;
-}
+type UserRecord = StoredUser;
 
 interface SessionRecord {
   token: string;
@@ -75,6 +73,7 @@ const VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 const RESET_TTL_MS = 60 * 60 * 1000;
 
 async function ensureDataDir() {
+
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
@@ -105,20 +104,25 @@ async function writeJson(file: string, data: unknown): Promise<void> {
   }
 }
 
-async function hashPassword(password: string, salt: string): Promise<string> {
+function hashPassword(password: string, salt: string): string {
+
   return crypto.scryptSync(password, salt, 64).toString('hex');
 }
 
-async function verifyPassword(password: string, salt: string, expectedHash: string): Promise<boolean> {
+function verifyPassword(password: string, salt: string, expectedHash: string): boolean {
+
   const candidate = hashPassword(password, salt);
   const a = Buffer.from(candidate, 'hex');
   const b = Buffer.from(expectedHash, 'hex');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-async function toPublicUser(record: UserRecord): Promise<User> {
+function toPublicUser(record: UserRecord): User {
+
   const { passwordSalt: _salt, passwordHash: _hash, ...user } = record;
-  return user;
+  // Everything left is the public shape; the cast is only needed because the
+  // record carries a couple of extra optional fields.
+  return user as User;
 }
 
 // Activate a subscription plan on a user record. Called only after a
@@ -143,8 +147,12 @@ export async function updateUserSubscription(userId: string, plan: SubscriptionT
 // Record usage server-side so plan limits cannot be bypassed by the client.
 export async function recordUsage(
   userId: string,
-  update:  { audits?: number; pages?: number; aiRequests?: number }
-): void {
+  update:   { audits?: number; pages?: number; aiRequests?: number }
+): Promise<void> {
+
+
+
+
 
 
 
@@ -205,6 +213,7 @@ export async function getSessionUser(req: {
 }
 
 async function validateEmail(email: string): Promise<boolean> {
+
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
@@ -213,6 +222,7 @@ async function validateEmail(email: string): Promise<boolean> {
 /* ------------------------------------------------------------------ */
 
 async function pruneTokens(tokens: TokenRecord[]): Promise<TokenRecord[]> {
+
   const now = Date.now();
   return tokens.filter((t) => new Date(t.expiresAt).getTime() > now);
 }
@@ -259,7 +269,7 @@ async function consumeToken(token: string, purpose: TokenPurpose): Promise<strin
 async function sendVerification(
   user: UserRecord
 ): Promise<{ sent: boolean; devLink?: string }> {
-  const token = issueToken(user.id, 'verify_email', VERIFY_TTL_MS);
+  const token = await issueToken(user.id, 'verify_email', VERIFY_TTL_MS);
   const url = `${appBaseUrl()}/verify-email?token=${token}`;
   const template = verificationEmail(user.name, url);
   const result = await sendEmail({ to: user.email, ...template });
@@ -276,7 +286,8 @@ async function invalidateSessions(userId: string): Promise<void> {
 
 /** Public user records — used by the monitoring scheduler. No secrets included. */
 export async function listUsers(): Promise<User[]> {
-  return await readJson<UserRecord[]>(USERS_FILE, []).map(toPublicUser);
+  const records = await readJson<UserRecord[]>(USERS_FILE, []);
+  return records.map(toPublicUser);
 }
 
 export async function createAuthRouter(): Promise<Router> {
@@ -347,7 +358,7 @@ export async function createAuthRouter(): Promise<Router> {
         console.warn('Failed to create free subscription record:', err);
       }
 
-      const token = createSession(record.id);
+      const token = await createSession(record.id);
 
       // Ask them to confirm the address (non-blocking: signup still succeeds).
       const verification = await sendVerification(record);
@@ -367,7 +378,7 @@ export async function createAuthRouter(): Promise<Router> {
   router.post('/login', async (req, res) => {
     try {
       const { email, password } = req.body as { email?: string; password?: string };
-      const cleanEmail = async (email || '').trim().toLowerCase();
+      const cleanEmail = (email || '').trim().toLowerCase();
 
       if (!validateEmail(cleanEmail) || !password) {
         return res.status(400).json({ error: 'Please enter both email and password.' });
@@ -379,7 +390,7 @@ export async function createAuthRouter(): Promise<Router> {
         return res.status(401).json({ error: 'Invalid email or password.' });
       }
 
-      const token = createSession(record.id);
+      const token = await createSession(record.id);
       return res.json({ user: toPublicUser(record), token });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed';
@@ -405,7 +416,7 @@ export async function createAuthRouter(): Promise<Router> {
       return res.status(400).json({ error: 'Verification token is missing.' });
     }
 
-    const userId = consumeToken(token, 'verify_email');
+    const userId = await consumeToken(token, 'verify_email');
     if (!userId) {
       return res
         .status(400)
@@ -453,7 +464,7 @@ export async function createAuthRouter(): Promise<Router> {
   // Always answers the same way so the endpoint cannot enumerate accounts.
   router.post('/forgot-password', async (req, res) => {
     const { email } = req.body as { email?: string };
-    const cleanEmail = async (email || '').trim().toLowerCase();
+    const cleanEmail = (email || '').trim().toLowerCase();
     const genericResponse = {
       message: 'If an account exists for that address, a reset link is on its way.',
     };
@@ -468,7 +479,7 @@ export async function createAuthRouter(): Promise<Router> {
       return res.json(genericResponse);
     }
 
-    const token = issueToken(record.id, 'reset_password', RESET_TTL_MS);
+    const token = await issueToken(record.id, 'reset_password', RESET_TTL_MS);
     const url = `${appBaseUrl()}/reset-password?token=${token}`;
     const result = await sendEmail({ to: record.email, ...passwordResetEmail(record.name, url) });
 
@@ -479,7 +490,7 @@ export async function createAuthRouter(): Promise<Router> {
   });
 
   // Set a new password using a reset link. Invalidates every existing session.
-  router.post('/reset-password', (req, res) => {
+  router.post('/reset-password', async (req, res) => {
     const { token, password } = req.body as { token?: string; password?: string };
     if (!token) {
       return res.status(400).json({ error: 'Reset token is missing.' });
@@ -488,7 +499,7 @@ export async function createAuthRouter(): Promise<Router> {
       return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
     }
 
-    const userId = consumeToken(token, 'reset_password');
+    const userId = await consumeToken(token, 'reset_password');
     if (!userId) {
       return res
         .status(400)
@@ -496,7 +507,7 @@ export async function createAuthRouter(): Promise<Router> {
     }
 
     const salt = crypto.randomBytes(16).toString('hex');
-    const record = await updateUser(userId, async (user) => {
+    const record = await updateUser(userId, (user) => {
       user.passwordSalt = salt;
       user.passwordHash = hashPassword(password, salt);
     });
@@ -505,21 +516,18 @@ export async function createAuthRouter(): Promise<Router> {
     }
 
     // Anyone holding an old session is signed out.
-    invalidateSessions(record.id);
+    await invalidateSessions(record.id);
 
     return res.json({ reset: true, user: toPublicUser(record as unknown as UserRecord) });
   });
 
   // Logout (invalidate the session token)
-  router.post('/logout', (req, res) => {
+  router.post('/logout', async (req, res) => {
     const authHeader = req.headers['authorization'];
     if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice('Bearer '.length).trim();
-      const sessions = readJson<SessionRecord[]>(SESSIONS_FILE, []);
-      writeJson(
-        SESSIONS_FILE,
-        sessions.filter((s) => s.token !== token)
-      );
+      // Delete just this session row rather than rewriting the whole table.
+      await deleteSession(token);
     }
     return res.json({ ok: true });
   });

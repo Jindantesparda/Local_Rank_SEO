@@ -11,7 +11,7 @@ import { createReportsRouter } from './server/reportsRouter';
 import { createMonitorRouter } from './server/monitorRouter';
 import { createAnalyticsRouter } from './server/analyticsRouter';
 import { createRankRouter } from './server/rankRouter';
-import { getDb, dbHealth, databasePath } from './server/db';
+import { getDb, dbHealth, databaseTarget , migrate} from './server/db';
 import { importLegacyData } from './server/legacyImport';
 import { clientKey, parseTrustProxy } from './server/proxy';
 import { startMonitoring } from './server/monitor';
@@ -59,6 +59,8 @@ function createAuthRateLimiter() {
 
 
 async function startServer() {
+  // Create the schema before anything queries it.
+  await migrate();
   // Storage: open (or create) the SQLite database, then import any data left
   // behind by the old JSON-file version. Import runs once, in a transaction.
   getDb();
@@ -70,7 +72,7 @@ async function startServer() {
         `${importReport.documents} documents`
     );
   } else {
-    console.log(`[db] ready at ${databasePath()}${importReport.skipped ? ` (${importReport.skipped})` : ''}`);
+    console.log(`[db] ready at ${databaseTarget()}${importReport.skipped ? ` (${importReport.skipped})` : ''}`);
   }
 
   const app = express();
@@ -128,7 +130,10 @@ async function startServer() {
         schemaVersion: db.schemaVersion,
         users: db.users,
         documents: db.documents,
-        sizeBytes: db.sizeBytes,
+        // Which database this process is actually talking to — confirms
+        // Turso is wired up rather than falling back to a local file.
+        target: db.target,
+        remote: db.remote,
         error: db.error,
       },
     });

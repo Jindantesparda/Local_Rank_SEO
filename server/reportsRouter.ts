@@ -62,8 +62,8 @@ export function createReportsRouter(): Router {
     };
   }
 
-  router.get('/:businessId', (req: Request, res: Response) => {
-    const ctx = loadContext(req, req.params.businessId);
+  router.get('/:businessId', async (req: Request, res: Response) => {
+    const ctx = await loadContext(req, req.params.businessId);
     if ('report' in ctx) {
       return res.json({ report: ctx.report });
     }
@@ -71,8 +71,8 @@ export function createReportsRouter(): Router {
     return res.status(status).json(upgradeTo ? { error, upgradeTo } : { error });
   });
 
-  function sendHtml(req: Request, res: Response) {
-    const ctx = loadContext(req, req.params.businessId);
+  async function sendHtml(req: Request, res: Response) {
+    const ctx = await loadContext(req, req.params.businessId);
 
     if ('report' in ctx) {
       const html = renderReportHtml(ctx.report);

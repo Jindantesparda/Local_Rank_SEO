@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import { Client, InStatement, ResultSet, Transaction, createClient } from '@libsql/client';
 
@@ -75,11 +76,26 @@ export function getDb(): Client {
     );
   }
 
+  /*
+    A local file database needs its directory to exist. libSQL reports only
+    "Unable to open connection to local database" if it is missing, which is a
+    confusing way to discover a fresh deployment has no data directory yet.
+  */
+  if (!isRemoteDatabase()) {
+    try {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    } catch (err) {
+      console.warn(
+        `[db] could not create ${DATA_DIR}: ${err instanceof Error ? err.message : err}`
+      );
+    }
+  }
+
   client = createClient({ url, ...(authToken ? { authToken } : {}) });
   return client;
 }
 
-export async function closeDb(): Promise<void> {
+export function closeDb(): void {
   if (client) {
     client.close();
     client = null;
@@ -95,7 +111,7 @@ function toStatement(sql: string, args?: Array<unknown>): InStatement {
   return args && args.length ? { sql, args: args as never[] } : { sql };
 }
 
-async function runner(): Promise<Client | Transaction> {
+function runner(): Client | Transaction {
   if (activeTx) return activeTx;
   return getDb();
 }
@@ -104,6 +120,23 @@ async function runner(): Promise<Client | Transaction> {
 export async function exec(sql: string, args?: Array<unknown>): Promise<ResultSet> {
   const conn = await runner();
   return conn.execute(toStatement(sql, args));
+}
+
+/**
+ * Run several statements as one atomic request.
+ *
+ * Routed through the ambient transaction when one is open. Calling the client
+ * directly here would use a *second* connection while the transaction holds the
+ * write lock, and libSQL answers that with SQLITE_BUSY — the transaction
+ * deadlocking against itself.
+ */
+export async function batch(statements: InStatement[]): Promise<void> {
+  if (statements.length === 0) return;
+  const conn = await runner();
+  // Client and Transaction both expose batch(); the union confuses the checker.
+  await (conn as unknown as {
+    batch: (s: InStatement[], mode: 'write') => Promise<unknown>;
+  }).batch(statements, 'write');
 }
 
 /** Run a statement and return its rows. */

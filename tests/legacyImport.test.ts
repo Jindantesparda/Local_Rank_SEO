@@ -91,7 +91,16 @@ const { findUserByEmail } = await import('../server/userRepo');
 
 after(async () => {
   await closeDb();
-  fs.rmSync(legacyDir, { recursive: true, force: true });
+  // Windows can refuse to delete the file the database handle has only just
+  // released, so retry briefly rather than failing the run on cleanup.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      fs.rmSync(legacyDir, { recursive: true, force: true });
+      break;
+    } catch {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
 });
 
 describe('legacy JSON import', () => {
@@ -108,7 +117,7 @@ describe('legacy JSON import', () => {
     assert.match(second.skipped || '', /already contains users/);
   });
 
-  test('renames the files instead of deleting them (the rollback path)', () => {
+  test('renames the files instead of deleting them (the rollback path)', async () => {
     assert.ok(
       fs.existsSync(path.join(legacyDir, 'users.json.imported')),
       'the original should survive as .imported'
@@ -144,8 +153,8 @@ describe('legacy JSON import', () => {
     assert.equal(sub.status, 'active');
   });
 
-  test('workspace documents carry over keyed by user', () => {
-    const workspace = docGet<{ businesses: Array<{ name: string }> }>('workspace', 'usr_old');
+  test('workspace documents carry over keyed by user', async () => {
+    const workspace = await docGet<{ businesses: Array<{ name: string }> }>('workspace', 'usr_old');
     assert.ok(workspace);
     assert.equal(workspace.businesses[0].name, 'Old Bistro');
   });

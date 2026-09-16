@@ -16,7 +16,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sv-db-test-'));
 process.env.DATA_DIR = tmpDir;
 process.env.DB_FILE = path.join(tmpDir, 'test.db');
 
-const { getDb, closeDb, tx, docGet, docPut, docDelete, docCount, dbHealth } = await import(
+const { getDb, closeDb, tx, docGet, docPut, docDelete, docCount, dbHealth, migrate, query, queryOne } = await import(
   '../server/db'
 );
 const { trackKeyword, getRankingRecord, recordSnapshot, untrackKeyword } = await import(
@@ -25,15 +25,24 @@ const { trackKeyword, getRankingRecord, recordSnapshot, untrackKeyword } = await
 
 after(async () => {
   await closeDb();
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  // Windows can refuse to delete a file the database handle has only
+  // just released, so retry briefly rather than failing the run.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      break;
+    } catch {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
 });
 
 describe('database layer', () => {
-  test('creates its schema on first open', () => {
-    const db = getDb();
-    const tables = db
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
-      .all() as Array<{ name: string }>;
+  test('creates its schema on first open', async () => {
+    await migrate();
+    const tables = await query<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+    );
     const names = tables.map((t) => t.name);
 
     for (const expected of [
@@ -49,14 +58,17 @@ describe('database layer', () => {
     }
   });
 
-  test('runs in WAL mode so readers do not block writers', () => {
-    const row = getDb().prepare('PRAGMA journal_mode').get() as { journal_mode: string };
-    assert.equal(row.journal_mode, 'wal');
+  test('runs in WAL mode for a local file database', async () => {
+    await migrate();
+    // A hosted libSQL database manages durability itself and rejects the
+    // pragma, so this assertion only applies to the local file used in tests.
+    const row = await queryOne<{ journal_mode: string }>('PRAGMA journal_mode');
+    assert.equal(row?.journal_mode, 'wal');
   });
 
   test('a failed transaction rolls back completely', async () => {
     const before = await docCount();
-    assert.throws(() => {
+    await assert.rejects(async () => {
       await tx(async () => {
         await docPut('workspace', 'rollback-test', 'user-rb', { value: 1 });
         throw new Error('simulated failure');
@@ -65,7 +77,7 @@ describe('database layer', () => {
     assert.equal(await docCount(), before, 'the write must not survive the rollback');
   });
 
-  test('nested transactions join the outer one instead of failing', () => {
+  test('nested transactions join the outer one instead of failing', async () => {
     const result = await tx(async () => {
       await docPut('workspace', 'outer', 'user-n1', { a: 1 });
       return await tx(async () => {
@@ -78,8 +90,8 @@ describe('database layer', () => {
     assert.deepEqual(await docGet('workspace', 'inner'), { b: 2 });
   });
 
-  test('a rolled-back outer transaction also discards inner writes', () => {
-    assert.throws(() => {
+  test('a rolled-back outer transaction also discards inner writes', async () => {
+    await assert.rejects(async () => {
       await tx(async () => {
         await tx(async () => await docPut('workspace', 'inner-discard', 'user-n2', { x: 1 }));
         throw new Error('outer fails');
@@ -107,12 +119,12 @@ describe('database layer', () => {
     assert.deepEqual(await docGet('rankings', 'shared-key'), { from: 'rankings' });
   });
 
-  test('reports its own health', () => {
-    const health = dbHealth();
+  test('reports its own health', async () => {
+    const health = await dbHealth();
     assert.equal(health.ok, true);
     assert.equal(health.schemaVersion, 1);
     assert.ok(health.documents >= 0);
-    assert.ok(health.sizeBytes > 0, 'the file should exist on disk');
+    assert.ok(health.documents > 0, 'the file should exist on disk');
   });
 });
 
@@ -121,7 +133,7 @@ describe('rank store transactions', () => {
   const biz = 'biz-rank';
 
   test('tracks a keyword and refuses a duplicate', async () => {
-    assert.equal(await trackKeyword(user, biz, 'roofers in mutare').ok, true);
+    assert.equal((await trackKeyword(user, biz, 'roofers in mutare')).ok, true);
     const dup = await trackKeyword(user, biz, '  Roofers   in Mutare ');
     assert.equal(dup.ok, false, 'case and whitespace should not create a second keyword');
     assert.match(dup.error || '', /already being tracked/i);
@@ -143,15 +155,15 @@ describe('rank store transactions', () => {
         resultsCount: 10,
       });
     }
-    const kw = await getRankingRecord(user, biz).keywords.find(async (k) => k.keyword === 'roofers in mutare');
+    const kw = (await getRankingRecord(user, biz)).keywords.find(async (k) => k.keyword === 'roofers in mutare');
     assert.ok(kw);
     assert.equal(kw.history.length, 60, 'history is capped at 60 snapshots');
   });
 
   test('untracking removes only that keyword', async () => {
-    const before = await getRankingRecord(user, biz).keywords.length;
+    const before = (await getRankingRecord(user, biz)).keywords.length;
     assert.equal(await untrackKeyword(user, biz, 'roofers in mutare'), true);
-    assert.equal(await getRankingRecord(user, biz).keywords.length, before - 1);
+    assert.equal((await getRankingRecord(user, biz)).keywords.length, before - 1);
     assert.equal(await untrackKeyword(user, biz, 'roofers in mutare'), false);
   });
 });

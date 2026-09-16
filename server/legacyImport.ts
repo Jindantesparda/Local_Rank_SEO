@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { AuditResult, Business, User } from '../src/types';
-import { docPut, getDb, n, tx } from './db';
+import { docPut, exec, migrate, n, query, queryOne, tx } from './db';
 
 /**
  * One-time import of the old JSON files into SQLite.
@@ -49,8 +49,22 @@ interface LegacyUser extends User {
   passwordHash?: string;
 }
 
+/**
+ * Minimal stand-in for the old prepared-statement API.
+ *
+ * The importer builds statements once and runs them in a loop, so this keeps
+ * that shape while the storage layer is asynchronous.
+ */
+const statement = (sql: string) => ({
+  run: (...args: unknown[]) => exec(sql, args),
+  get: (...args: unknown[]) => queryOne(sql, args),
+  all: (...args: unknown[]) => query(sql, args),
+});
+
 export async function importLegacyData(): Promise<ImportReport> {
-  const report: ImportReport = {
+    await migrate();
+
+const report: ImportReport = {
     ran: false,
     users: 0,
     sessions: 0,
@@ -60,10 +74,9 @@ export async function importLegacyData(): Promise<ImportReport> {
     documents: 0,
   };
 
-  const conn = getDb();
 
   // Only ever run against a virgin database.
-  const existing = conn.prepare('SELECT COUNT(*) c FROM users').get() as { c: number };
+  const existing = (await queryOne<{ c: number }>('SELECT COUNT(*) c FROM users')) as { c: number };
   if (Number(existing.c) > 0) {
     return { ...report, skipped: 'database already contains users' };
   }
@@ -139,14 +152,14 @@ export async function importLegacyData(): Promise<ImportReport> {
   const rankings = readJsonFile<Record<string, unknown>>('rankings.json', {});
 
   await tx(async () => {
-    const insertUser = conn.prepare(
+    const insertUser = statement(
       `INSERT INTO users (id, email, name, password_salt, password_hash, email_verified,
                           subscription, subscription_tier, usage, business_ids, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
     for (const u of users) {
-      insertUser.run(
+      await insertUser.run(
         u.id,
         u.email,
         u.name,
@@ -162,33 +175,33 @@ export async function importLegacyData(): Promise<ImportReport> {
       report.users += 1;
     }
 
-    const insertSession = conn.prepare(
+    const insertSession = statement(
       'INSERT OR IGNORE INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)'
     );
     for (const s of sessions) {
       if (!users.some((u) => u.id === s.userId)) continue;
-      insertSession.run(s.token, s.userId, s.createdAt);
+      await insertSession.run(s.token, s.userId, s.createdAt);
       report.sessions += 1;
     }
 
-    const insertToken = conn.prepare(
+    const insertToken = statement(
       `INSERT OR IGNORE INTO email_tokens (token_hash, user_id, purpose, expires_at, created_at)
        VALUES (?, ?, ?, ?, ?)`
     );
     for (const t of tokens) {
       if (!users.some(async (u) => u.id === t.userId)) continue;
-      insertToken.run(t.tokenHash, t.userId, t.purpose, t.expiresAt, t.createdAt);
+      await insertToken.run(t.tokenHash, t.userId, t.purpose, t.expiresAt, t.createdAt);
       report.tokens += 1;
     }
 
-    const insertPayment = conn.prepare(
+    const insertPayment = statement(
       `INSERT OR IGNORE INTO payments (id, user_id, subscription_id, provider, provider_ref,
         provider_txn, plan, poll_url, amount, currency, payment_method, status,
         created_at, updated_at, webhook_received)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const p of payments) {
-      insertPayment.run(
+      await insertPayment.run(
         p.id,
         p.userId,
         n(p.subscriptionId),
@@ -208,13 +221,13 @@ export async function importLegacyData(): Promise<ImportReport> {
       report.payments += 1;
     }
 
-    const insertSubscription = conn.prepare(
+    const insertSubscription = statement(
       `INSERT OR IGNORE INTO subscriptions (id, user_id, plan, status, period_start, period_end,
         provider_customer_id, provider_sub_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const s of subscriptions) {
-      insertSubscription.run(
+      await insertSubscription.run(
         s.id,
         s.userId,
         s.plan,

@@ -67,7 +67,7 @@ export function createRankRouter(): Router {
   /* ------------------------ Search Console link ------------------------- */
 
   router.get('/:businessId/connection', async (req: Request, res: Response) => {
-    const ctx = context(req, res, req.params.businessId);
+    const ctx = await context(req, res, req.params.businessId);
     if (!ctx) return;
 
     const connection = await getConnection(ctx.user.id, ctx.business.id);
@@ -87,7 +87,7 @@ export function createRankRouter(): Router {
   });
 
   router.put('/:businessId/connection', async (req: Request, res: Response) => {
-    const ctx = context(req, res, req.params.businessId);
+    const ctx = await context(req, res, req.params.businessId);
     if (!ctx) return;
 
     if (!isSearchConsoleConfigured()) {
@@ -97,7 +97,7 @@ export function createRankRouter(): Router {
       });
     }
 
-    const raw = async (req.body as { siteUrl?: string }).siteUrl;
+    const raw = (req.body as { siteUrl?: string }).siteUrl;
     const siteUrl = normaliseSiteUrl(raw || ctx.business.website || '');
     if (!siteUrl) {
       return res
@@ -118,7 +118,7 @@ export function createRankRouter(): Router {
   });
 
   router.delete('/:businessId/connection', async (req: Request, res: Response) => {
-    const ctx = context(req, res, req.params.businessId);
+    const ctx = await context(req, res, req.params.businessId);
     if (!ctx) return;
     await disconnect(ctx.user.id, ctx.business.id);
     return res.json({ connected: false });
@@ -127,7 +127,7 @@ export function createRankRouter(): Router {
   /* --------------------------- tracked keywords ------------------------- */
 
   router.get('/:businessId', async (req: Request, res: Response) => {
-    const ctx = context(req, res, req.params.businessId);
+    const ctx = await context(req, res, req.params.businessId);
     if (!ctx) return;
 
     const record = await getRankingRecord(ctx.user.id, ctx.business.id);
@@ -168,7 +168,7 @@ export function createRankRouter(): Router {
   });
 
   router.post('/:businessId', async (req: Request, res: Response) => {
-    const ctx = context(req, res, req.params.businessId);
+    const ctx = await context(req, res, req.params.businessId);
     if (!ctx) return;
 
     if (!await getConnection(ctx.user.id, ctx.business.id)) {
@@ -207,7 +207,7 @@ export function createRankRouter(): Router {
   });
 
   router.post('/:businessId/refresh', async (req: Request, res: Response) => {
-    const ctx = context(req, res, req.params.businessId);
+    const ctx = await context(req, res, req.params.businessId);
     if (!ctx) return;
 
     if (!await getConnection(ctx.user.id, ctx.business.id)) {
@@ -226,7 +226,7 @@ export function createRankRouter(): Router {
   });
 
   router.delete('/:businessId/:keyword', async (req: Request, res: Response) => {
-    const ctx = context(req, res, req.params.businessId);
+    const ctx = await context(req, res, req.params.businessId);
     if (!ctx) return;
 
     const removed = await untrackKeyword(ctx.user.id, ctx.business.id, req.params.keyword);

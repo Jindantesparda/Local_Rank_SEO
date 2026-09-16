@@ -47,11 +47,14 @@ export interface RankCheckResult {
 }
 
 /** Is rank tracking usable for this business right now? */
-export async function rankSourceStatus(userId: string, businessId: string): {
+export async function rankSourceStatus(
+  userId: string,
+  businessId: string
+): Promise<{
   configured: boolean;
   connected: boolean;
   siteUrl: string | null;
-} {
+}> {
   const connection = await getConnection(userId, businessId);
   return {
     configured: isSearchConsoleConfigured(),

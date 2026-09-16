@@ -7,10 +7,11 @@ import { Request, Response, NextFunction } from 'express';
 import { getSessionUser } from './auth';
 import { getPlan, canUserAuditMore, canUserAddBusiness, canUserMonitorWebsite } from './plans';
 import { getUserActiveSubscription } from './paymentStore';
-import { SubscriptionTier } from '../src/types';
+import { SubscriptionTier, User } from '../src/types';
 
 export interface AuthenticatedRequest extends Request {
-  user?: ReturnType<typeof getSessionUser>;
+  /** The authenticated user. Resolved by requireAuth before handlers run. */
+  user?: User | null;
 }
 
 /**

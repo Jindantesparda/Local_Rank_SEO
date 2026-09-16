@@ -145,7 +145,7 @@ export function createBillingRouter(): Router {
 
       // Create pending payment record. The purchased plan is stored on the
       // payment so the webhook can activate the correct plan later.
-      const payment = createPayment(
+      const payment = await createPayment(
         user.id,
         planConfig.price,
         paymentMethod as 'ecocash' | 'onemoney' | 'card',

@@ -5,7 +5,7 @@ import {
   Subscription,
   SubscriptionTier,
 } from '../src/types';
-import { getDb, n, tx } from './db';
+import { exec, n, query, queryOne, tx } from './db';
 
 /**
  * Payments and subscriptions.
@@ -48,7 +48,7 @@ interface SubscriptionRow {
   updated_at: string;
 }
 
-async function toPayment(row: PaymentRow): Promise<Payment> {
+function toPayment(row: PaymentRow): Payment {
   return {
     id: row.id,
     userId: row.user_id,
@@ -68,7 +68,7 @@ async function toPayment(row: PaymentRow): Promise<Payment> {
   };
 }
 
-async function toSubscription(row: SubscriptionRow): Promise<Subscription> {
+function toSubscription(row: SubscriptionRow): Subscription {
   return {
     id: row.id,
     userId: row.user_id,
@@ -83,13 +83,13 @@ async function toSubscription(row: SubscriptionRow): Promise<Subscription> {
   };
 }
 
-async function newId(prefix: string): Promise<string> {
+function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 }
 
 /* ==================== PAYMENTS ==================== */
 
-export function createPayment(
+export async function createPayment(
   userId: string,
   amount: number,
   paymentMethod: PaymentMethod,
@@ -97,7 +97,16 @@ export function createPayment(
   plan: SubscriptionTier,
   pollUrl?: string,
   providerTransactionId?: string
-): Payment {
+): Promise<Payment> {
+
+
+
+
+
+
+
+
+
   const now = new Date().toISOString();
   const payment: Payment = {
     id: newId('pay'),
@@ -115,14 +124,11 @@ export function createPayment(
     updatedAt: now,
   };
 
-  getDb()
-    .prepare(
-      `INSERT INTO payments (id, user_id, subscription_id, provider, provider_ref, provider_txn,
+  await exec(
+    `INSERT INTO payments (id, user_id, subscription_id, provider, provider_ref, provider_txn,
         plan, poll_url, amount, currency, payment_method, status, created_at, updated_at, webhook_received)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      payment.id,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [payment.id,
       userId,
       null,
       payment.provider,
@@ -136,29 +142,37 @@ export function createPayment(
       payment.status,
       now,
       now,
-      null
-    );
+      null]
+  );
 
   console.log(`[Payment] Created payment ${payment.id} for user ${userId} (${plan})`);
   return payment;
 }
 
 export async function getPayment(paymentId: string): Promise<Payment | null> {
-  const row = getDb().prepare('SELECT * FROM payments WHERE id = ?').get(paymentId) as unknown as PaymentRow | undefined;
+
+  const row = (await queryOne(
+    'SELECT * FROM payments WHERE id = ?',
+    [paymentId]
+  )) as PaymentRow | null;
   return row ? toPayment(row) : null;
 }
 
 export async function getPaymentByProviderReference(providerReference: string): Promise<Payment | null> {
-  const row = getDb()
-    .prepare('SELECT * FROM payments WHERE provider_ref = ? ORDER BY created_at DESC LIMIT 1')
-    .get(providerReference) as unknown as PaymentRow | undefined;
+
+  const row = (await queryOne(
+    'SELECT * FROM payments WHERE provider_ref = ? ORDER BY created_at DESC LIMIT 1',
+    [providerReference]
+  )) as PaymentRow | null;
   return row ? toPayment(row) : null;
 }
 
 export async function getUserPayments(userId: string): Promise<Payment[]> {
-  const rows = getDb()
-    .prepare('SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC')
-    .all(userId) as unknown as PaymentRow[];
+
+  const rows = (await query(
+    'SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC',
+    [userId]
+  )) as PaymentRow[];
   return rows.map(toPayment);
 }
 
@@ -176,13 +190,12 @@ export async function updatePaymentStatus(
     const existing = await getPayment(paymentId);
     if (!existing) return null;
 
-    getDb()
-      .prepare(
-        `UPDATE payments SET status = ?, updated_at = ?,
+    await exec(
+    `UPDATE payments SET status = ?, updated_at = ?,
            webhook_received = COALESCE(?, webhook_received)
-         WHERE id = ?`
-      )
-      .run(status, new Date().toISOString(), n(webhookReceivedAt), paymentId);
+         WHERE id = ?`,
+    [status, new Date().toISOString(), n(webhookReceivedAt), paymentId]
+  );
 
     console.log(`[Payment] Updated payment ${paymentId} status to ${status}`);
     return await getPayment(paymentId);
@@ -201,9 +214,10 @@ export async function updatePaymentSubscription(
     const existing = await getPayment(paymentId);
     if (!existing) return null;
 
-    getDb()
-      .prepare('UPDATE payments SET subscription_id = ?, updated_at = ? WHERE id = ?')
-      .run(subscriptionId, new Date().toISOString(), paymentId);
+    await exec(
+    'UPDATE payments SET subscription_id = ?, updated_at = ? WHERE id = ?',
+    [subscriptionId, new Date().toISOString(), paymentId]
+  );
 
     return await getPayment(paymentId);
   });
@@ -226,12 +240,11 @@ export async function createSubscription(
     const now = new Date();
     const nowIso = now.toISOString();
 
-    getDb()
-      .prepare(
-        `UPDATE subscriptions SET status = 'canceled', updated_at = ?
-         WHERE user_id = ? AND status = 'active'`
-      )
-      .run(nowIso, userId);
+    await exec(
+    `UPDATE subscriptions SET status = 'canceled', updated_at = ?
+         WHERE user_id = ? AND status = 'active'`,
+    [nowIso, userId]
+  );
 
     const endDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
@@ -246,14 +259,11 @@ export async function createSubscription(
       updatedAt: nowIso,
     };
 
-    getDb()
-      .prepare(
-        `INSERT INTO subscriptions (id, user_id, plan, status, period_start, period_end,
+    await exec(
+    `INSERT INTO subscriptions (id, user_id, plan, status, period_start, period_end,
           duration_days, provider_customer_id, provider_sub_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        record.id,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [record.id,
         userId,
         plan,
         record.status,
@@ -263,8 +273,8 @@ export async function createSubscription(
         null,
         null,
         nowIso,
-        nowIso
-      );
+        nowIso]
+  );
 
     return record;
   });
@@ -274,26 +284,30 @@ export async function createSubscription(
 }
 
 export async function getSubscription(subscriptionId: string): Promise<Subscription | null> {
-  const row = getDb()
-    .prepare('SELECT * FROM subscriptions WHERE id = ?')
-    .get(subscriptionId) as unknown as SubscriptionRow | undefined;
+
+  const row = (await queryOne(
+    'SELECT * FROM subscriptions WHERE id = ?',
+    [subscriptionId]
+  )) as SubscriptionRow | null;
   return row ? toSubscription(row) : null;
 }
 
 export async function getUserActiveSubscription(userId: string): Promise<Subscription | null> {
-  const row = getDb()
-    .prepare(
-      `SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'
-       ORDER BY created_at DESC LIMIT 1`
-    )
-    .get(userId) as unknown as SubscriptionRow | undefined;
+
+  const row = (await queryOne(
+    `SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'
+       ORDER BY created_at DESC LIMIT 1`,
+    [userId]
+  )) as SubscriptionRow | null;
   return row ? toSubscription(row) : null;
 }
 
 export async function getUserSubscriptions(userId: string): Promise<Subscription[]> {
-  const rows = getDb()
-    .prepare('SELECT * FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC')
-    .all(userId) as unknown as SubscriptionRow[];
+
+  const rows = (await query(
+    'SELECT * FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC',
+    [userId]
+  )) as SubscriptionRow[];
   return rows.map(toSubscription);
 }
 
@@ -302,9 +316,10 @@ export async function cancelSubscription(subscriptionId: string): Promise<Subscr
     const existing = await getSubscription(subscriptionId);
     if (!existing) return null;
 
-    getDb()
-      .prepare(`UPDATE subscriptions SET status = 'canceled', updated_at = ? WHERE id = ?`)
-      .run(new Date().toISOString(), subscriptionId);
+    await exec(
+    `UPDATE subscriptions SET status = 'canceled', updated_at = ? WHERE id = ?`,
+    [new Date().toISOString(), subscriptionId]
+  );
 
     console.log(`[Subscription] Cancelled subscription ${subscriptionId}`);
     return await getSubscription(subscriptionId);
@@ -326,18 +341,15 @@ export async function renewSubscription(
     const now = new Date();
     const endDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-    getDb()
-      .prepare(
-        `UPDATE subscriptions SET status = 'active', period_start = ?, period_end = ?,
-           duration_days = ?, updated_at = ? WHERE id = ?`
-      )
-      .run(
-        now.toISOString(),
+    await exec(
+    `UPDATE subscriptions SET status = 'active', period_start = ?, period_end = ?,
+           duration_days = ?, updated_at = ? WHERE id = ?`,
+    [now.toISOString(),
         endDate.toISOString(),
         durationDays,
         now.toISOString(),
-        subscriptionId
-      );
+        subscriptionId]
+  );
 
     console.log(`[Subscription] Renewed subscription ${subscriptionId}`);
     return await getSubscription(subscriptionId);
@@ -356,9 +368,10 @@ export async function changeSubscriptionPlan(
     const existing = await getSubscription(subscriptionId);
     if (!existing) return null;
 
-    getDb()
-      .prepare('UPDATE subscriptions SET plan = ?, updated_at = ? WHERE id = ?')
-      .run(newPlan, new Date().toISOString(), subscriptionId);
+    await exec(
+    'UPDATE subscriptions SET plan = ?, updated_at = ? WHERE id = ?',
+    [newPlan, new Date().toISOString(), subscriptionId]
+  );
 
     console.log(`[Subscription] Changed subscription ${subscriptionId} plan to ${newPlan}`);
     return await getSubscription(subscriptionId);

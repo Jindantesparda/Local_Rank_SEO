@@ -1,5 +1,5 @@
 import { UserSubscription, UserUsage } from '../src/types';
-import { exec, n, query, queryOne, tx } from './db';
+import { batch, exec, n, query, queryOne, tx } from './db';
 
 /**
  * Row-level access to users, sessions and email tokens.
@@ -143,8 +143,7 @@ export async function saveUsers(users: StoredUser[]): Promise<void> {
   });
 
   // One request: either the whole set lands or none of it does.
-  const { getDb } = await import('./db');
-  await getDb().batch(statements as never[], 'write');
+  await batch(statements as never[]);
 }
 
 /* ----------------------------- sessions --------------------------- */
@@ -352,8 +351,7 @@ export async function markEmailVerified(id: string): Promise<StoredUser | null> 
 
 /** Remove a user and everything that hangs off them, in one request. */
 export async function deleteUserCascade(id: string): Promise<void> {
-  const { getDb } = await import('./db');
-  await getDb().batch(
+  await batch(
     [
       { sql: 'DELETE FROM sessions WHERE user_id = ?', args: [id] },
       { sql: 'DELETE FROM email_tokens WHERE user_id = ?', args: [id] },
@@ -361,8 +359,7 @@ export async function deleteUserCascade(id: string): Promise<void> {
       { sql: 'DELETE FROM subscriptions WHERE user_id = ?', args: [id] },
       { sql: 'DELETE FROM documents WHERE user_id = ?', args: [id] },
       { sql: 'DELETE FROM users WHERE id = ?', args: [id] },
-    ] as never[],
-    'write'
+    ] as never[]
   );
 }
 

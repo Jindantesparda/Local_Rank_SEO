@@ -55,8 +55,8 @@ export function createAnalyticsRouter(): Router {
     return { user, business };
   }
 
-  router.get('/config', (req: Request, res: Response) => {
-    const user = requireUser(req, res);
+  router.get('/config', async (req: Request, res: Response) => {
+    const user = await requireUser(req, res);
     if (!user) return;
 
     return res.json({
@@ -66,7 +66,7 @@ export function createAnalyticsRouter(): Router {
   });
 
   router.get('/:businessId', async (req: Request, res: Response) => {
-    const ctx = requireBusiness(req, res, req.params.businessId);
+    const ctx = await requireBusiness(req, res, req.params.businessId);
     if (!ctx) return;
 
     if (!isAnalyticsConfigured()) {
@@ -126,7 +126,7 @@ export function createAnalyticsRouter(): Router {
   });
 
   router.put('/:businessId', async (req: Request, res: Response) => {
-    const ctx = requireBusiness(req, res, req.params.businessId);
+    const ctx = await requireBusiness(req, res, req.params.businessId);
     if (!ctx) return;
 
     if (!isAnalyticsConfigured()) {
@@ -172,7 +172,7 @@ export function createAnalyticsRouter(): Router {
   });
 
   router.delete('/:businessId', async (req: Request, res: Response) => {
-    const ctx = requireBusiness(req, res, req.params.businessId);
+    const ctx = await requireBusiness(req, res, req.params.businessId);
     if (!ctx) return;
 
     await disconnectAnalytics(ctx.user.id, ctx.business.id);
