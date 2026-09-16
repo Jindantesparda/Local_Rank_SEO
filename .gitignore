@@ -7,3 +7,9 @@ data/
 *.log
 .env*
 !.env.example
+
+# Scratch files used while working (probes, one-off patch scripts)
+__*.py
+__*.js
+__*.json
+__*.log
