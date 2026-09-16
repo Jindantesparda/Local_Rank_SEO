@@ -1,25 +1,25 @@
-# Render blueprint for Search Vailable.
+# Render blueprint for Search Vailable — free tier + Turso.
 #
-# This runs the full Express server (crawler + auth + billing + static frontend)
-# on one URL, so the frontend's relative /api/... calls work.
+# Runs the full Express server (crawler + auth + billing + static frontend) on
+# one URL, so the frontend's relative /api/... calls work.
 #
 # Why not Vercel: this app needs a long-lived process (the monitoring scheduler),
-# a persistent writable filesystem (SQLite on a disk), and multi-page crawls that
-# can take 10+ seconds. Serverless has none of those — the data directory is
-# ephemeral, so accounts and payments would vanish on every cold start.
+# a persistent database, and multi-page crawls that can take 10+ seconds.
+# Serverless has none of those.
 #
-# Notes:
-# - Requires Node 24: storage is SQLite via the built-in node:sqlite module.
-# - The disk below makes user/payment data survive restarts and deploys.
-#   Render disks require a paid instance type. On the free tier, remove the
-#   `disk:` block and `DATA_DIR` env var — the app still runs, but data resets
-#   when the service restarts.
-# - Set the secret values in the Render dashboard (marked sync: false).
+# Why Turso and no disk: Render's free tier has no persistent disk, so a local
+# SQLite file would be wiped on every restart and deploy. The database lives in
+# Turso instead, so data survives — and costs nothing.
+#
+# IMPORTANT — Render free services SLEEP after ~15 minutes without traffic,
+# which stops the in-process monitoring scheduler. The GitHub Actions workflow in
+# .github/workflows/monitor.yml pings /api/monitor/run hourly to keep automated
+# monitoring working. Without it, paid-plan monitoring silently stops.
 services:
   - type: web
     name: search-vailable
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
@@ -35,8 +35,17 @@ services:
         value: "24"
       - key: NODE_ENV
         value: production
-      - key: DATA_DIR
-        value: /opt/render/project/src/data
+
+      # --- Database (required) -------------------------------------------
+      # Create a free database at https://turso.tech, then:
+      #   turso db show <db> --url          → TURSO_DATABASE_URL
+      #   turso db tokens create <db>       → TURSO_AUTH_TOKEN
+      # Without these the app falls back to a local file, which on Render free
+      # means data is lost on every restart.
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
 
       # Public URL of this service. Without it every verification and
       # password-reset email links to http://localhost:3000 and is dead on
@@ -78,7 +87,3 @@ services:
         sync: false
       - key: PAYNOW_INTEGRATION_KEY
         sync: false
-    disk:
-      name: search-vailable-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1

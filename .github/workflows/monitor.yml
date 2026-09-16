@@ -1,0 +1,84 @@
+name: Monitoring
+
+# Render's free tier sleeps a service after ~15 minutes without traffic, which
+# stops the in-process monitoring scheduler. This workflow wakes it up and runs
+# a monitoring pass, so scheduled re-audits and rank-drop alerts still happen.
+#
+# It has a second benefit: the service is warm, so a real visitor does not hit a
+# ~50 second cold start.
+#
+# Setup (one time):
+#   1. Sign in to Search Vailable and copy your session token from the browser's
+#      localStorage under the key `searchvailable_token`.
+#   2. Add it to this repository as an Actions secret named MONITOR_TOKEN.
+#      Settings → Secrets and variables → Actions → New repository secret.
+#   3. Add a repository variable APP_URL if your domain is not the default below.
+#
+# Note: the token expires after SESSION_TTL_DAYS (30 by default). When it does,
+# this job starts returning 401 and the log line tells you to replace the secret.
+# A dedicated long-lived service token is not built yet.
+
+on:
+  schedule:
+    # Hourly. GitHub sometimes delays scheduled runs under load, which is fine —
+    # a monitoring pass that runs every couple of hours is still useful.
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: monitoring
+  cancel-in-progress: false
+
+jobs:
+  run-monitoring:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the service and run a monitoring pass
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://searchvailable.com' }}
+          MONITOR_TOKEN: ${{ secrets.MONITOR_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MONITOR_TOKEN}" ]; then
+            echo "MONITOR_TOKEN secret is not set — skipping."
+            echo "Add it under Settings → Secrets and variables → Actions."
+            exit 0
+          fi
+
+          echo "Waking ${APP_URL} (free tier services sleep)…"
+          # A cold start can take up to a minute, so allow for it.
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "${APP_URL}/api/health" || true)
+            echo "  attempt ${i}: health returned ${code}"
+            if [ "${code}" = "200" ]; then break; fi
+            sleep 5
+          done
+          if [ "${code:-}" != "200" ]; then
+            echo "::error::${APP_URL}/api/health never returned 200. The service may be down."
+            exit 1
+          fi
+
+          echo "Running the monitoring pass…"
+          body=$(mktemp)
+          status=$(curl -s -o "${body}" -w '%{http_code}' --max-time 120 \
+            -X POST "${APP_URL}/api/monitor/run" \
+            -H "Authorization: Bearer ${MONITOR_TOKEN}" \
+            -H 'Content-Type: application/json' || true)
+
+          cat "${body}"
+          echo
+
+          case "${status}" in
+            200)
+              echo "Monitoring pass completed."
+              ;;
+            401|403)
+              echo "::error::The MONITOR_TOKEN was rejected (HTTP ${status}). It has probably expired after SESSION_TTL_DAYS — sign in again, copy the new token from localStorage, and update the secret."
+              exit 1
+              ;;
+            *)
+              echo "::error::Monitoring pass failed with HTTP ${status}."
+              exit 1
+              ;;
+          esac

@@ -59,19 +59,46 @@ function createAuthRateLimiter() {
 
 
 async function startServer() {
-  // Create the schema before anything queries it.
-  await migrate();
+  /*
+    Create the schema before serving traffic.
+
+    Deliberately non-fatal: if the database is unreachable (wrong Turso URL, an
+    expired token, a network blip) the server still starts and /api/health
+    reports the actual error. Crashing here instead means the process exits, the
+    health check fails, and the only symptom is an unhealthy deploy with no
+    explanation in the logs.
+  */
+  try {
+    await migrate();
+  } catch (err) {
+    console.error(
+      '[db] schema check failed at startup — the server will start but /api/health will report 503:',
+      err instanceof Error ? err.message : err
+    );
+  }
   // Storage: open (or create) the SQLite database, then import any data left
   // behind by the old JSON-file version. Import runs once, in a transaction.
   getDb();
-  const importReport = await importLegacyData();
-  if (importReport.ran) {
+
+  // Non-fatal for the same reason as the schema check above: an unreachable
+  // database must not stop the process, or the health check cannot tell you why.
+  let importReport: Awaited<ReturnType<typeof importLegacyData>> | null = null;
+  try {
+    importReport = await importLegacyData();
+  } catch (err) {
+    console.error(
+      '[db] legacy import skipped — the database is not reachable:',
+      err instanceof Error ? err.message : err
+    );
+  }
+
+  if (importReport?.ran) {
     console.log(
       `[db] imported legacy JSON → ${importReport.users} users, ${importReport.sessions} sessions, ` +
         `${importReport.payments} payments, ${importReport.subscriptions} subscriptions, ` +
         `${importReport.documents} documents`
     );
-  } else {
+  } else if (importReport) {
     console.log(`[db] ready at ${databaseTarget()}${importReport.skipped ? ` (${importReport.skipped})` : ''}`);
   }
 

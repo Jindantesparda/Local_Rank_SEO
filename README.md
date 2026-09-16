@@ -889,6 +889,64 @@ that returned early — checking a single plan would have missed it entirely.
 
 ---
 
+## Hosting on Render free + Turso
+
+The free way to run this, with data that survives restarts.
+
+**Why Turso is not optional here.** Render's free tier has no persistent disk, so a local database
+file is wiped on every restart and every deploy — accounts, audits and payments would vanish. Turso
+holds the database off-box, and its free tier (500 databases, 9 GB, 1B row reads/month) is far beyond
+what this app will use.
+
+**One code path, no drift.** The app talks to libSQL, which accepts either a `libsql://` URL or a
+local `file:`. Development and the test suite use a local file (offline, fast, no account); production
+uses Turso. Nothing about the storage code differs between them.
+
+### Setup
+
+1. **Create the database**
+   ```bash
+   turso db create search-vailable
+   turso db show search-vailable --url     # → TURSO_DATABASE_URL
+   turso db tokens create search-vailable  # → TURSO_AUTH_TOKEN
+   ```
+
+2. **Deploy the blueprint.** Render → New → Blueprint, pointed at this repo. `render.yaml` sets the
+   free plan, the Node version, and the two Turso variables (marked `sync: false`, so you enter them
+   in the dashboard rather than committing them).
+
+3. **Confirm it is really on Turso** before touching DNS:
+   ```bash
+   curl https://<service>.onrender.com/api/health
+   ```
+   `database.remote` must be `true` and `database.ok` must be `true`. If `remote` is `false`, the
+   Turso variables did not reach the service and data will be lost on the next restart.
+
+4. **Add the custom domain** — see the Cloudflare section below.
+
+### If the database is unreachable
+
+Startup deliberately does **not** crash when the database cannot be reached. The server starts and
+`/api/health` returns **503** with `status: "degraded"` and the underlying error, so a bad URL or an
+expired token is diagnosable from the health check instead of showing up as a silent unhealthy
+deploy.
+
+### The free-tier catch: the service sleeps
+
+Render free services sleep after about 15 minutes without traffic, which **stops the in-process
+monitoring scheduler** — and automated monitoring is part of what the Growth plan sells.
+
+`.github/workflows/monitor.yml` fixes this. It wakes the service hourly and calls
+`/api/monitor/run`, so scheduled re-audits and rank-drop alerts still happen. Being awake also means
+real visitors do not hit a ~50 second cold start.
+
+**To enable it:** sign in, copy the session token from `localStorage['searchvailable_token']`, and add
+it as an Actions secret named `MONITOR_TOKEN`. The token expires after `SESSION_TTL_DAYS` (30 by
+default); the workflow then fails with a message telling you to replace it. A dedicated long-lived
+service token is not built yet.
+
+---
+
 ## Custom domain (Cloudflare → Render)
 
 A worked example using `searchvailable.com`, registered through Cloudflare and served by Render.
