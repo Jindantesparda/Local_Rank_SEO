@@ -289,7 +289,7 @@ describe('crawler safety', () => {
 
     for (const url of blocked) {
       await assert.rejects(
-        () => crawlWebsite(url, 1, business),
+        async () => await crawlWebsite(url, 1, business),
         /prohibited|not allowed|Invalid|private/i,
         `${url} must be refused`
       );
@@ -306,7 +306,7 @@ describe('crawler safety', () => {
   test('refuses non-HTTP protocols', async () => {
     for (const url of ['file:///etc/passwd', 'ftp://example.com', 'javascript:alert(1)']) {
       await assert.rejects(
-        () => crawlWebsite(url, 1, business),
+        async () => await crawlWebsite(url, 1, business),
         /only http|prohibited|Invalid/i,
         `${url} must be refused`
       );

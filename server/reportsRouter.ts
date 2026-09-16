@@ -21,8 +21,8 @@ export function createReportsRouter(): Router {
 
   type Ctx = { report: ReportData } | { status: number; error: string; upgradeTo?: string };
 
-  function loadContext(req: Request, businessId: string): Ctx {
-    const user = getSessionUser(req);
+  async function loadContext(req: Request, businessId: string): Promise<Ctx> {
+    const user = await getSessionUser(req);
     if (!user) {
       return { status: 401, error: 'Not authenticated.' };
     }
@@ -37,7 +37,7 @@ export function createReportsRouter(): Router {
       };
     }
 
-    const workspace = getWorkspace(user.id);
+    const workspace = await getWorkspace(user.id);
     const business: Business | undefined = workspace?.businesses.find((b) => b.id === businessId);
     if (!business) {
       return { status: 404, error: 'Business not found.' };
@@ -50,7 +50,7 @@ export function createReportsRouter(): Router {
       return { status: 400, error: 'Run an audit for this business first.' };
     }
 
-    const competitorRecord = getCompetitorRecord(user.id, businessId);
+    const competitorRecord = await getCompetitorRecord(user.id, businessId);
     const history = (audit.auditHistory || []).map((h) => ({
       date: h.date,
       score: h.score,

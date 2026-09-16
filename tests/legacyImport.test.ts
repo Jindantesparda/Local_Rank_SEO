@@ -89,21 +89,21 @@ const { getUserActiveSubscription, getPaymentByProviderReference } = await impor
 );
 const { findUserByEmail } = await import('../server/userRepo');
 
-after(() => {
-  closeDb();
+after(async () => {
+  await closeDb();
   fs.rmSync(legacyDir, { recursive: true, force: true });
 });
 
 describe('legacy JSON import', () => {
-  test('imports everything, then refuses to run a second time', () => {
-    const report = importLegacyData();
+  test('imports everything, then refuses to run a second time', async () => {
+    const report = await importLegacyData();
     assert.equal(report.ran, true);
     assert.equal(report.users, 1);
     assert.equal(report.payments, 1);
     assert.equal(report.subscriptions, 1);
     assert.equal(report.documents, 1);
 
-    const second = importLegacyData();
+    const second = await importLegacyData();
     assert.equal(second.ran, false, 'must never import twice');
     assert.match(second.skipped || '', /already contains users/);
   });
@@ -120,8 +120,8 @@ describe('legacy JSON import', () => {
     );
   });
 
-  test('the imported user is usable, with plan and usage intact', () => {
-    const user = findUserByEmail('old@test.com');
+  test('the imported user is usable, with plan and usage intact', async () => {
+    const user = await findUserByEmail('old@test.com');
     assert.ok(user);
     assert.equal(user.subscription.plan, 'pro');
     assert.equal(user.usage.auditsUsed, 1);
@@ -129,16 +129,16 @@ describe('legacy JSON import', () => {
     assert.equal(user.emailVerified, true);
   });
 
-  test('payments survive with their provider reference intact', () => {
-    const payment = getPaymentByProviderReference('REF-OLD');
+  test('payments survive with their provider reference intact', async () => {
+    const payment = await getPaymentByProviderReference('REF-OLD');
     assert.ok(payment, 'payment lookup by reference must work');
     assert.equal(payment.amount, 1900);
     assert.equal(payment.status, 'paid');
     assert.equal(payment.paymentMethod, 'ecocash');
   });
 
-  test('the subscription carries over as the active plan', () => {
-    const sub = getUserActiveSubscription('usr_old');
+  test('the subscription carries over as the active plan', async () => {
+    const sub = await getUserActiveSubscription('usr_old');
     assert.ok(sub);
     assert.equal(sub.plan, 'pro');
     assert.equal(sub.status, 'active');

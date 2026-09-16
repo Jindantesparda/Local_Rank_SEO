@@ -23,8 +23,8 @@ const { trackKeyword, getRankingRecord, recordSnapshot, untrackKeyword } = await
   '../server/rankStore'
 );
 
-after(() => {
-  closeDb();
+after(async () => {
+  await closeDb();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -54,57 +54,57 @@ describe('database layer', () => {
     assert.equal(row.journal_mode, 'wal');
   });
 
-  test('a failed transaction rolls back completely', () => {
-    const before = docCount();
+  test('a failed transaction rolls back completely', async () => {
+    const before = await docCount();
     assert.throws(() => {
-      tx(() => {
-        docPut('workspace', 'rollback-test', 'user-rb', { value: 1 });
+      await tx(async () => {
+        await docPut('workspace', 'rollback-test', 'user-rb', { value: 1 });
         throw new Error('simulated failure');
       });
     }, /simulated failure/);
-    assert.equal(docCount(), before, 'the write must not survive the rollback');
+    assert.equal(await docCount(), before, 'the write must not survive the rollback');
   });
 
   test('nested transactions join the outer one instead of failing', () => {
-    const result = tx(() => {
-      docPut('workspace', 'outer', 'user-n1', { a: 1 });
-      return tx(() => {
-        docPut('workspace', 'inner', 'user-n1', { b: 2 });
+    const result = await tx(async () => {
+      await docPut('workspace', 'outer', 'user-n1', { a: 1 });
+      return await tx(async () => {
+        await docPut('workspace', 'inner', 'user-n1', { b: 2 });
         return 'ok';
       });
     });
     assert.equal(result, 'ok');
-    assert.deepEqual(docGet('workspace', 'outer'), { a: 1 });
-    assert.deepEqual(docGet('workspace', 'inner'), { b: 2 });
+    assert.deepEqual(await docGet('workspace', 'outer'), { a: 1 });
+    assert.deepEqual(await docGet('workspace', 'inner'), { b: 2 });
   });
 
   test('a rolled-back outer transaction also discards inner writes', () => {
     assert.throws(() => {
-      tx(() => {
-        tx(() => docPut('workspace', 'inner-discard', 'user-n2', { x: 1 }));
+      await tx(async () => {
+        await tx(async () => await docPut('workspace', 'inner-discard', 'user-n2', { x: 1 }));
         throw new Error('outer fails');
       });
     });
-    assert.equal(docGet('workspace', 'inner-discard'), null);
+    assert.equal(await docGet('workspace', 'inner-discard'), null);
   });
 
-  test('documents round-trip, overwrite and delete', () => {
-    docPut('monitor', 'k1', 'user-d1', { checks: 1 });
-    assert.deepEqual(docGet('monitor', 'k1'), { checks: 1 });
+  test('documents round-trip, overwrite and delete', async () => {
+    await docPut('monitor', 'k1', 'user-d1', { checks: 1 });
+    assert.deepEqual(await docGet('monitor', 'k1'), { checks: 1 });
 
-    docPut('monitor', 'k1', 'user-d1', { checks: 2 });
-    assert.deepEqual(docGet('monitor', 'k1'), { checks: 2 }, 'upsert must replace');
+    await docPut('monitor', 'k1', 'user-d1', { checks: 2 });
+    assert.deepEqual(await docGet('monitor', 'k1'), { checks: 2 }, 'upsert must replace');
 
-    assert.equal(docDelete('monitor', 'k1'), true);
-    assert.equal(docGet('monitor', 'k1'), null);
-    assert.equal(docDelete('monitor', 'k1'), false, 'deleting twice is not an error');
+    assert.equal(await docDelete('monitor', 'k1'), true);
+    assert.equal(await docGet('monitor', 'k1'), null);
+    assert.equal(await docDelete('monitor', 'k1'), false, 'deleting twice is not an error');
   });
 
-  test('namespaces are isolated from each other', () => {
-    docPut('analytics', 'shared-key', 'user-ns', { from: 'analytics' });
-    docPut('rankings', 'shared-key', 'user-ns', { from: 'rankings' });
-    assert.deepEqual(docGet('analytics', 'shared-key'), { from: 'analytics' });
-    assert.deepEqual(docGet('rankings', 'shared-key'), { from: 'rankings' });
+  test('namespaces are isolated from each other', async () => {
+    await docPut('analytics', 'shared-key', 'user-ns', { from: 'analytics' });
+    await docPut('rankings', 'shared-key', 'user-ns', { from: 'rankings' });
+    assert.deepEqual(await docGet('analytics', 'shared-key'), { from: 'analytics' });
+    assert.deepEqual(await docGet('rankings', 'shared-key'), { from: 'rankings' });
   });
 
   test('reports its own health', () => {
@@ -120,38 +120,38 @@ describe('rank store transactions', () => {
   const user = 'user-rank';
   const biz = 'biz-rank';
 
-  test('tracks a keyword and refuses a duplicate', () => {
-    assert.equal(trackKeyword(user, biz, 'roofers in mutare').ok, true);
-    const dup = trackKeyword(user, biz, '  Roofers   in Mutare ');
+  test('tracks a keyword and refuses a duplicate', async () => {
+    assert.equal(await trackKeyword(user, biz, 'roofers in mutare').ok, true);
+    const dup = await trackKeyword(user, biz, '  Roofers   in Mutare ');
     assert.equal(dup.ok, false, 'case and whitespace should not create a second keyword');
     assert.match(dup.error || '', /already being tracked/i);
   });
 
-  test('enforces the per-business keyword cap', () => {
+  test('enforces the per-business keyword cap', async () => {
     for (let i = 0; i < 10; i += 1) {
-      trackKeyword(user, biz, `extra keyword ${i}`);
+      await trackKeyword(user, biz, `extra keyword ${i}`);
     }
-    const record = getRankingRecord(user, biz);
+    const record = await getRankingRecord(user, biz);
     assert.equal(record.keywords.length, 5, 'cap is 5 keywords per business');
   });
 
-  test('appends snapshots and trims old history', () => {
+  test('appends snapshots and trims old history', async () => {
     for (let i = 0; i < 70; i += 1) {
-      recordSnapshot(user, biz, 'roofers in mutare', {
+      await recordSnapshot(user, biz, 'roofers in mutare', {
         checkedAt: new Date().toISOString(),
         position: i % 10,
         resultsCount: 10,
       });
     }
-    const kw = getRankingRecord(user, biz).keywords.find((k) => k.keyword === 'roofers in mutare');
+    const kw = await getRankingRecord(user, biz).keywords.find(async (k) => k.keyword === 'roofers in mutare');
     assert.ok(kw);
     assert.equal(kw.history.length, 60, 'history is capped at 60 snapshots');
   });
 
-  test('untracking removes only that keyword', () => {
-    const before = getRankingRecord(user, biz).keywords.length;
-    assert.equal(untrackKeyword(user, biz, 'roofers in mutare'), true);
-    assert.equal(getRankingRecord(user, biz).keywords.length, before - 1);
-    assert.equal(untrackKeyword(user, biz, 'roofers in mutare'), false);
+  test('untracking removes only that keyword', async () => {
+    const before = await getRankingRecord(user, biz).keywords.length;
+    assert.equal(await untrackKeyword(user, biz, 'roofers in mutare'), true);
+    assert.equal(await getRankingRecord(user, biz).keywords.length, before - 1);
+    assert.equal(await untrackKeyword(user, biz, 'roofers in mutare'), false);
   });
 });

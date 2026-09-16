@@ -48,7 +48,7 @@ interface SubscriptionRow {
   updated_at: string;
 }
 
-function toPayment(row: PaymentRow): Payment {
+async function toPayment(row: PaymentRow): Promise<Payment> {
   return {
     id: row.id,
     userId: row.user_id,
@@ -68,7 +68,7 @@ function toPayment(row: PaymentRow): Payment {
   };
 }
 
-function toSubscription(row: SubscriptionRow): Subscription {
+async function toSubscription(row: SubscriptionRow): Promise<Subscription> {
   return {
     id: row.id,
     userId: row.user_id,
@@ -83,7 +83,7 @@ function toSubscription(row: SubscriptionRow): Subscription {
   };
 }
 
-function newId(prefix: string): string {
+async function newId(prefix: string): Promise<string> {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 }
 
@@ -143,32 +143,37 @@ export function createPayment(
   return payment;
 }
 
-export function getPayment(paymentId: string): Payment | null {
+export async function getPayment(paymentId: string): Promise<Payment | null> {
   const row = getDb().prepare('SELECT * FROM payments WHERE id = ?').get(paymentId) as unknown as PaymentRow | undefined;
   return row ? toPayment(row) : null;
 }
 
-export function getPaymentByProviderReference(providerReference: string): Payment | null {
+export async function getPaymentByProviderReference(providerReference: string): Promise<Payment | null> {
   const row = getDb()
     .prepare('SELECT * FROM payments WHERE provider_ref = ? ORDER BY created_at DESC LIMIT 1')
     .get(providerReference) as unknown as PaymentRow | undefined;
   return row ? toPayment(row) : null;
 }
 
-export function getUserPayments(userId: string): Payment[] {
+export async function getUserPayments(userId: string): Promise<Payment[]> {
   const rows = getDb()
     .prepare('SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC')
     .all(userId) as unknown as PaymentRow[];
   return rows.map(toPayment);
 }
 
-export function updatePaymentStatus(
+export async function updatePaymentStatus(
   paymentId: string,
   status: PaymentStatus,
   webhookReceivedAt?: string
-): Payment | null {
-  return tx(() => {
-    const existing = getPayment(paymentId);
+): Promise<Payment | null> {
+
+
+
+
+
+  return await tx(async () => {
+    const existing = await getPayment(paymentId);
     if (!existing) return null;
 
     getDb()
@@ -180,35 +185,44 @@ export function updatePaymentStatus(
       .run(status, new Date().toISOString(), n(webhookReceivedAt), paymentId);
 
     console.log(`[Payment] Updated payment ${paymentId} status to ${status}`);
-    return getPayment(paymentId);
+    return await getPayment(paymentId);
   });
 }
 
-export function updatePaymentSubscription(
+export async function updatePaymentSubscription(
   paymentId: string,
   subscriptionId: string
-): Payment | null {
-  return tx(() => {
-    const existing = getPayment(paymentId);
+): Promise<Payment | null> {
+
+
+
+
+  return await tx(async () => {
+    const existing = await getPayment(paymentId);
     if (!existing) return null;
 
     getDb()
       .prepare('UPDATE payments SET subscription_id = ?, updated_at = ? WHERE id = ?')
       .run(subscriptionId, new Date().toISOString(), paymentId);
 
-    return getPayment(paymentId);
+    return await getPayment(paymentId);
   });
 }
 
 /* ==================== SUBSCRIPTIONS ==================== */
 
-export function createSubscription(
+export async function createSubscription(
   userId: string,
   plan: SubscriptionTier,
   durationDays: number = 30
-): Subscription {
+): Promise<Subscription> {
+
+
+
+
+
   // One transaction: deactivate any current plan, then activate the new one.
-  const subscription = tx(() => {
+  const subscription = await tx(async () => {
     const now = new Date();
     const nowIso = now.toISOString();
 
@@ -259,14 +273,14 @@ export function createSubscription(
   return subscription;
 }
 
-export function getSubscription(subscriptionId: string): Subscription | null {
+export async function getSubscription(subscriptionId: string): Promise<Subscription | null> {
   const row = getDb()
     .prepare('SELECT * FROM subscriptions WHERE id = ?')
     .get(subscriptionId) as unknown as SubscriptionRow | undefined;
   return row ? toSubscription(row) : null;
 }
 
-export function getUserActiveSubscription(userId: string): Subscription | null {
+export async function getUserActiveSubscription(userId: string): Promise<Subscription | null> {
   const row = getDb()
     .prepare(
       `SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active'
@@ -276,16 +290,16 @@ export function getUserActiveSubscription(userId: string): Subscription | null {
   return row ? toSubscription(row) : null;
 }
 
-export function getUserSubscriptions(userId: string): Subscription[] {
+export async function getUserSubscriptions(userId: string): Promise<Subscription[]> {
   const rows = getDb()
     .prepare('SELECT * FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC')
     .all(userId) as unknown as SubscriptionRow[];
   return rows.map(toSubscription);
 }
 
-export function cancelSubscription(subscriptionId: string): Subscription | null {
-  return tx(() => {
-    const existing = getSubscription(subscriptionId);
+export async function cancelSubscription(subscriptionId: string): Promise<Subscription | null> {
+  return await tx(async () => {
+    const existing = await getSubscription(subscriptionId);
     if (!existing) return null;
 
     getDb()
@@ -293,16 +307,20 @@ export function cancelSubscription(subscriptionId: string): Subscription | null 
       .run(new Date().toISOString(), subscriptionId);
 
     console.log(`[Subscription] Cancelled subscription ${subscriptionId}`);
-    return getSubscription(subscriptionId);
+    return await getSubscription(subscriptionId);
   });
 }
 
-export function renewSubscription(
+export async function renewSubscription(
   subscriptionId: string,
   durationDays: number = 30
-): Subscription | null {
-  return tx(() => {
-    const existing = getSubscription(subscriptionId);
+): Promise<Subscription | null> {
+
+
+
+
+  return await tx(async () => {
+    const existing = await getSubscription(subscriptionId);
     if (!existing) return null;
 
     const now = new Date();
@@ -322,16 +340,20 @@ export function renewSubscription(
       );
 
     console.log(`[Subscription] Renewed subscription ${subscriptionId}`);
-    return getSubscription(subscriptionId);
+    return await getSubscription(subscriptionId);
   });
 }
 
-export function changeSubscriptionPlan(
+export async function changeSubscriptionPlan(
   subscriptionId: string,
   newPlan: SubscriptionTier
-): Subscription | null {
-  return tx(() => {
-    const existing = getSubscription(subscriptionId);
+): Promise<Subscription | null> {
+
+
+
+
+  return await tx(async () => {
+    const existing = await getSubscription(subscriptionId);
     if (!existing) return null;
 
     getDb()
@@ -339,7 +361,7 @@ export function changeSubscriptionPlan(
       .run(newPlan, new Date().toISOString(), subscriptionId);
 
     console.log(`[Subscription] Changed subscription ${subscriptionId} plan to ${newPlan}`);
-    return getSubscription(subscriptionId);
+    return await getSubscription(subscriptionId);
   });
 }
 

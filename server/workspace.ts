@@ -2,17 +2,17 @@ import { Router } from 'express';
 import { getSessionUser } from './auth';
 import { getWorkspace, saveWorkspace } from './workspaceStore';
 
-export function createWorkspaceRouter(): Router {
+export async function createWorkspaceRouter(): Promise<Router> {
   const router = Router();
 
   // Load the signed-in user's full workspace (businesses + audits)
-  router.get('/', (req, res) => {
-    const user = getSessionUser(req);
+  router.get('/', async (req, res) => {
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
 
-    const workspace = getWorkspace(user.id);
+    const workspace = await getWorkspace(user.id);
     return res.json({
       workspace: workspace || {
         businesses: [],
@@ -23,8 +23,8 @@ export function createWorkspaceRouter(): Router {
   });
 
   // Save the signed-in user's full workspace
-  router.put('/', (req, res) => {
-    const user = getSessionUser(req);
+  router.put('/', async (req, res) => {
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
@@ -39,7 +39,7 @@ export function createWorkspaceRouter(): Router {
       return res.status(400).json({ error: 'Invalid workspace data.' });
     }
 
-    const workspace = saveWorkspace(user.id, {
+    const workspace = await saveWorkspace(user.id, {
       businesses: businesses as never,
       audits: audits as never,
       activeBusinessId: typeof activeBusinessId === 'string' ? activeBusinessId : '',

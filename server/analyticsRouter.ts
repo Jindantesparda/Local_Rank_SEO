@@ -31,8 +31,8 @@ import { deriveMeasuredDropOff } from './measuredDropoff';
 export function createAnalyticsRouter(): Router {
   const router = Router();
 
-  function requireUser(req: Request, res: Response) {
-    const user = getSessionUser(req);
+  async function requireUser(req: Request, res: Response) {
+    const user = await getSessionUser(req);
     if (!user) {
       res.status(401).json({ error: 'Not authenticated.' });
       return null;
@@ -40,13 +40,13 @@ export function createAnalyticsRouter(): Router {
     return user;
   }
 
-  function requireBusiness(req: Request, res: Response, businessId: string) {
-    const user = getSessionUser(req);
+  async function requireBusiness(req: Request, res: Response, businessId: string) {
+    const user = await getSessionUser(req);
     if (!user) {
       res.status(401).json({ error: 'Not authenticated.' });
       return null;
     }
-    const workspace = getWorkspace(user.id);
+    const workspace = await getWorkspace(user.id);
     const business = workspace?.businesses.find((b) => b.id === businessId);
     if (!business) {
       res.status(404).json({ error: 'Business not found.' });
@@ -73,7 +73,7 @@ export function createAnalyticsRouter(): Router {
       return res.json({ connected: false, configured: false });
     }
 
-    const record = getAnalyticsRecord(ctx.user.id, ctx.business.id);
+    const record = await getAnalyticsRecord(ctx.user.id, ctx.business.id);
     if (!record) {
       return res.json({ connected: false, configured: true });
     }
@@ -86,7 +86,7 @@ export function createAnalyticsRouter(): Router {
     if (refresh || stale) {
       try {
         const summary = await fetchAnalyticsSummary(record.propertyId, 28);
-        saveSummary(ctx.user.id, ctx.business.id, summary);
+        await saveSummary(ctx.user.id, ctx.business.id, summary);
         return res.json({
           connected: true,
           configured: true,
@@ -96,7 +96,7 @@ export function createAnalyticsRouter(): Router {
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Could not reach Google Analytics.';
-        saveError(ctx.user.id, ctx.business.id, message);
+        await saveError(ctx.user.id, ctx.business.id, message);
 
         // Fall back to the last good numbers rather than showing an error page.
         if (record.lastSummary) {
@@ -154,11 +154,11 @@ export function createAnalyticsRouter(): Router {
       return res.status(400).json({ error: message });
     }
 
-    connectAnalytics(ctx.user.id, ctx.business.id, propertyId);
+    await connectAnalytics(ctx.user.id, ctx.business.id, propertyId);
 
     try {
       const summary = await fetchAnalyticsSummary(propertyId, 28);
-      saveSummary(ctx.user.id, ctx.business.id, summary);
+      await saveSummary(ctx.user.id, ctx.business.id, summary);
       return res.json({
         connected: true,
         propertyId,
@@ -171,11 +171,11 @@ export function createAnalyticsRouter(): Router {
     }
   });
 
-  router.delete('/:businessId', (req: Request, res: Response) => {
+  router.delete('/:businessId', async (req: Request, res: Response) => {
     const ctx = requireBusiness(req, res, req.params.businessId);
     if (!ctx) return;
 
-    disconnectAnalytics(ctx.user.id, ctx.business.id);
+    await disconnectAnalytics(ctx.user.id, ctx.business.id);
     return res.json({ connected: false });
   });
 

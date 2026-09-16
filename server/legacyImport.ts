@@ -49,7 +49,7 @@ interface LegacyUser extends User {
   passwordHash?: string;
 }
 
-export function importLegacyData(): ImportReport {
+export async function importLegacyData(): Promise<ImportReport> {
   const report: ImportReport = {
     ran: false,
     users: 0,
@@ -138,7 +138,7 @@ export function importLegacyData(): ImportReport {
   const analytics = readJsonFile<Record<string, unknown>>('analytics.json', {});
   const rankings = readJsonFile<Record<string, unknown>>('rankings.json', {});
 
-  tx(() => {
+  await tx(async () => {
     const insertUser = conn.prepare(
       `INSERT INTO users (id, email, name, password_salt, password_hash, email_verified,
                           subscription, subscription_tier, usage, business_ids, created_at)
@@ -176,7 +176,7 @@ export function importLegacyData(): ImportReport {
        VALUES (?, ?, ?, ?, ?)`
     );
     for (const t of tokens) {
-      if (!users.some((u) => u.id === t.userId)) continue;
+      if (!users.some(async (u) => u.id === t.userId)) continue;
       insertToken.run(t.tokenHash, t.userId, t.purpose, t.expiresAt, t.createdAt);
       report.tokens += 1;
     }
@@ -230,31 +230,31 @@ export function importLegacyData(): ImportReport {
     }
 
     for (const [userId, record] of Object.entries(workspaces)) {
-      docPut('workspace', userId, userId, record);
+      await docPut('workspace', userId, userId, record);
       report.documents += 1;
     }
 
     for (const [key, record] of Object.entries(competitors)) {
-      docPut('competitors', key, key.split('::')[0], record);
+      await docPut('competitors', key, key.split('::')[0], record);
       report.documents += 1;
     }
 
     for (const [key, value] of Object.entries(monitor.businesses || {})) {
-      docPut('monitor', key, key.split('::')[0], value);
+      await docPut('monitor', key, key.split('::')[0], value);
       report.documents += 1;
     }
     for (const [userId, value] of Object.entries(monitor.windows || {})) {
-      docPut('monitor', `window::${userId}`, userId, value);
+      await docPut('monitor', `window::${userId}`, userId, value);
       report.documents += 1;
     }
 
     for (const [key, record] of Object.entries(analytics)) {
-      docPut('analytics', key, key.split('::')[0], record);
+      await docPut('analytics', key, key.split('::')[0], record);
       report.documents += 1;
     }
 
     for (const [key, record] of Object.entries(rankings)) {
-      docPut('rankings', key, key.split('::')[0], record);
+      await docPut('rankings', key, key.split('::')[0], record);
       report.documents += 1;
     }
   });

@@ -16,8 +16,8 @@ export interface AuthenticatedRequest extends Request {
 /**
  * Middleware: Verify user is authenticated
  */
-export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const user = getSessionUser(req);
+export async function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const user = await getSessionUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Authentication required.' });
   }
@@ -28,12 +28,12 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
 /**
  * Middleware: Verify user has an active subscription
  */
-export function requireActiveSubscription(
+export async function requireActiveSubscription(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
-  const user = getSessionUser(req);
+  const user = await getSessionUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Authentication required.' });
   }
@@ -51,12 +51,12 @@ export function requireActiveSubscription(
 /**
  * Middleware: Check if user can perform an audit
  */
-export function checkAuditLimit(
+export async function checkAuditLimit(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
-  const user = getSessionUser(req);
+  const user = await getSessionUser(req);
 
   // Guests may run a free preview crawl; the results are held until they sign up.
   if (!user) {
@@ -82,12 +82,12 @@ export function checkAuditLimit(
 /**
  * Middleware: Check if user can add a new business
  */
-export function checkBusinessLimit(
+export async function checkBusinessLimit(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
-  const user = getSessionUser(req);
+  const user = await getSessionUser(req);
   if (!user) {
     return res.status(401).json({ error: 'Authentication required.' });
   }
@@ -114,8 +114,8 @@ export function checkBusinessLimit(
 export function requirePaidPlan(
   requiredPlans: SubscriptionTier[]
 ): (req: AuthenticatedRequest, res: Response, next: NextFunction) => void {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const user = getSessionUser(req);
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Authentication required.' });
     }

@@ -154,7 +154,7 @@ async function mapWithLimit<T, R>(
 }
 
 
-export function createCompetitorsRouter(): Router {
+export async function createCompetitorsRouter(): Promise<Router> {
   const router = Router();
 
   // Public: tell the client whether SERP data is available, and from where.
@@ -175,7 +175,7 @@ export function createCompetitorsRouter(): Router {
 
   // Analyze competitor sites and save the comparison.
   router.post('/analyze', async (req, res) => {
-    const user = getSessionUser(req);
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
@@ -211,7 +211,7 @@ export function createCompetitorsRouter(): Router {
         analyzeCompetitor(url, business)
       );
 
-      const record = saveCompetitorRecord(user.id, business.id, {
+      const record = await saveCompetitorRecord(user.id, business.id, {
         urls: cleaned,
         results,
       });
@@ -225,7 +225,7 @@ export function createCompetitorsRouter(): Router {
 
   // Search visibility: who ranks above you for a keyword.
   router.post('/serp', async (req, res) => {
-    const user = getSessionUser(req);
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
@@ -272,18 +272,18 @@ export function createCompetitorsRouter(): Router {
   });
 
   // Saved competitors + last comparison for a business.
-  router.get('/:businessId', (req, res) => {
-    const user = getSessionUser(req);
+  router.get('/:businessId', async (req, res) => {
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
-    const record = getCompetitorRecord(user.id, req.params.businessId);
+    const record = await getCompetitorRecord(user.id, req.params.businessId);
     return res.json({ competitors: record.results, urls: record.urls, updatedAt: record.updatedAt });
   });
 
   // Save the competitor URL list.
-  router.put('/:businessId', (req, res) => {
-    const user = getSessionUser(req);
+  router.put('/:businessId', async (req, res) => {
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
@@ -297,11 +297,11 @@ export function createCompetitorsRouter(): Router {
       new Set(
         (urls as string[])
           .map((u) => normalizeUrl(String(u || '')))
-          .filter((u) => u && toDomain(u))
+          .filter(async (u) => u && toDomain(u))
       )
     ).slice(0, MAX_COMPETITORS);
 
-    const record = saveCompetitorRecord(user.id, req.params.businessId, { urls: cleaned });
+    const record = await saveCompetitorRecord(user.id, req.params.businessId, { urls: cleaned });
     return res.json({ urls: record.urls, competitors: record.results });
   });
 

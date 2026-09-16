@@ -23,13 +23,13 @@ function key(userId: string, businessId: string): string {
   return `${userId}::${businessId}`;
 }
 
-export function getAnalyticsRecord(userId: string, businessId: string): AnalyticsRecord | null {
+export async function getAnalyticsRecord(userId: string, businessId: string): Promise<AnalyticsRecord | null>  {
   return docGet<AnalyticsRecord>(NS, key(userId, businessId));
 }
 
-export function connectAnalytics(userId: string, businessId: string, propertyId: string) {
-  const existing = getAnalyticsRecord(userId, businessId);
-  docPut(NS, key(userId, businessId), userId, {
+export async function connectAnalytics(userId: string, businessId: string, propertyId: string) {
+  const existing = await getAnalyticsRecord(userId, businessId);
+  await docPut(NS, key(userId, businessId), userId, {
     propertyId,
     connectedAt: existing?.connectedAt || new Date().toISOString(),
     lastFetchedAt: existing?.lastFetchedAt,
@@ -38,10 +38,10 @@ export function connectAnalytics(userId: string, businessId: string, propertyId:
   });
 }
 
-export function saveSummary(userId: string, businessId: string, summary: AnalyticsSummary) {
-  const existing = getAnalyticsRecord(userId, businessId);
+export async function saveSummary(userId: string, businessId: string, summary: AnalyticsSummary) {
+  const existing = await getAnalyticsRecord(userId, businessId);
   if (!existing) return;
-  docPut(NS, key(userId, businessId), userId, {
+  await docPut(NS, key(userId, businessId), userId, {
     ...existing,
     lastFetchedAt: summary.fetchedAt,
     lastError: undefined,
@@ -49,16 +49,16 @@ export function saveSummary(userId: string, businessId: string, summary: Analyti
   });
 }
 
-export function saveError(userId: string, businessId: string, message: string) {
-  const existing = getAnalyticsRecord(userId, businessId);
+export async function saveError(userId: string, businessId: string, message: string) {
+  const existing = await getAnalyticsRecord(userId, businessId);
   if (!existing) return;
-  docPut(NS, key(userId, businessId), userId, { ...existing, lastError: message });
+  await docPut(NS, key(userId, businessId), userId, { ...existing, lastError: message });
 }
 
-export function disconnectAnalytics(userId: string, businessId: string) {
-  docDelete(NS, key(userId, businessId));
+export async function disconnectAnalytics(userId: string, businessId: string) {
+  await docDelete(NS, key(userId, businessId));
 }
 
-export function removeAnalyticsData(userId: string) {
-  docDeleteByUser(userId);
+export async function removeAnalyticsData(userId: string) {
+  await docDeleteByUser(userId);
 }

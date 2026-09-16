@@ -13,24 +13,24 @@ export interface WorkspaceRecord {
   updatedAt: string;
 }
 
-export function getWorkspace(userId: string): WorkspaceRecord | null {
+export async function getWorkspace(userId: string): Promise<WorkspaceRecord | null>  {
   return docGet<WorkspaceRecord>('workspace', userId);
 }
 
-export function saveWorkspace(
+export async function saveWorkspace(
   userId: string,
   data: { businesses: Business[]; audits: AuditResult[]; activeBusinessId: string }
-): WorkspaceRecord {
+): Promise<WorkspaceRecord>  {
   const record: WorkspaceRecord = {
     businesses: data.businesses,
     audits: data.audits,
     activeBusinessId: data.activeBusinessId,
     updatedAt: new Date().toISOString(),
   };
-  docPut('workspace', userId, userId, record);
+  await docPut('workspace', userId, userId, record);
   return record;
 }
 
-export function removeWorkspace(userId: string) {
-  docDeleteByUser(userId);
+export async function removeWorkspace(userId: string) {
+  await docDeleteByUser(userId);
 }

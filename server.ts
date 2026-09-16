@@ -62,7 +62,7 @@ async function startServer() {
   // Storage: open (or create) the SQLite database, then import any data left
   // behind by the old JSON-file version. Import runs once, in a transaction.
   getDb();
-  const importReport = importLegacyData();
+  const importReport = await importLegacyData();
   if (importReport.ran) {
     console.log(
       `[db] imported legacy JSON → ${importReport.users} users, ${importReport.sessions} sessions, ` +
@@ -107,8 +107,8 @@ async function startServer() {
   app.use(express.urlencoded({ extended: false }));
 
   // API Routes
-  app.get('/api/health', (req, res) => {
-    const db = dbHealth();
+  app.get('/api/health', async (req, res) => {
+    const db = await dbHealth();
     // Reports 503 when storage is unavailable so an uptime monitor can tell
     // "process is up" apart from "process can actually serve requests".
     res.status(db.ok ? 200 : 503).json({
@@ -135,22 +135,22 @@ async function startServer() {
   });
 
   // Auth & user account routes (rate limited against credential stuffing)
-  app.use('/api/auth', createAuthRateLimiter(), createAuthRouter());
+  app.use('/api/auth', createAuthRateLimiter(), await createAuthRouter());
 
   // Billing & subscription routes
   app.use('/api/billing', createBillingRouter());
 
   // Per-user workspace (businesses + audits) syncs across devices
-  app.use('/api/workspace', createWorkspaceRouter());
+  app.use('/api/workspace', await createWorkspaceRouter());
 
   // Competitor comparison + search visibility
-  app.use('/api/competitors', createCompetitorsRouter());
+  app.use('/api/competitors', await createCompetitorsRouter());
 
   // Client-ready SEO reports (Agency plan)
   app.use('/api/reports', createReportsRouter());
 
   // Automated monitoring: real status + a manual "check now" for the signed-in user
-  app.use('/api/monitor', createMonitorRouter());
+  app.use('/api/monitor', await createMonitorRouter());
 
   // Google Analytics 4: measured visitor behaviour (operator credential, not per-user)
   app.use('/api/analytics', createAnalyticsRouter());
@@ -188,9 +188,9 @@ async function startServer() {
       const auditResult = await runAudit(business, { maxPages, useAi: true });
 
       // Count the audit server-side so plan limits are enforced authoritatively.
-      const auditUser = getSessionUser(req);
+      const auditUser = await getSessionUser(req);
       if (auditUser) {
-        recordUsage(auditUser.id, { audits: 1, pages: auditResult.pagesAnalyzed });
+        await recordUsage(auditUser.id, { audits: 1, pages: auditResult.pagesAnalyzed });
       }
 
       return res.json({ audit: auditResult });

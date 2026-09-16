@@ -1,5 +1,5 @@
 import { UserSubscription, UserUsage } from '../src/types';
-import { getDb, n, tx } from './db';
+import { exec, n, query, queryOne, tx } from './db';
 
 /**
  * Row-level access to users, sessions and email tokens.
@@ -8,10 +8,11 @@ import { getDb, n, tx } from './db';
  * by column: email at sign-in, token on each authenticated request, user id
  * everywhere else.
  *
- * The load/save-all helpers below exist so the auth module could move onto
- * SQLite without rewriting every handler. They are safe because each mutation
- * runs inside `tx()`, and nothing inside a transaction awaits — so two requests
- * can never read the same snapshot and then overwrite each other.
+ * Lookups are targeted: sign-in fetches one row by email, and every
+ * authenticated request fetches exactly one row by id. An earlier version read
+ * the whole users table on every request, which was tolerable against a local
+ * file but would transfer the entire table over the network on each API call
+ * now that the database is hosted.
  */
 
 export interface StoredUser {
@@ -69,34 +70,53 @@ function rowToUser(row: Record<string, unknown>): StoredUser {
   };
 }
 
-export function loadUsers(): StoredUser[] {
-  const rows = getDb().prepare('SELECT * FROM users').all() as Array<Record<string, unknown>>;
+/**
+ * Every user. Only for whole-table operations (e.g. the monitoring scheduler
+ * iterating accounts) — never on a per-request path.
+ */
+export async function loadUsers(): Promise<StoredUser[]> {
+  const rows = await query<Record<string, unknown>>('SELECT * FROM users');
   return rows.map(rowToUser);
 }
 
-/** Replace the stored user set: upsert every row, remove any that vanished. */
-export function saveUsers(users: StoredUser[]) {
-  const conn = getDb();
-  const upsert = conn.prepare(
-    `INSERT INTO users (id, email, name, password_salt, password_hash, email_verified,
-                        subscription, subscription_tier, usage, business_ids, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       email = excluded.email,
-       name = excluded.name,
-       password_salt = excluded.password_salt,
-       password_hash = excluded.password_hash,
-       email_verified = excluded.email_verified,
-       subscription = excluded.subscription,
-       subscription_tier = excluded.subscription_tier,
-       usage = excluded.usage,
-       business_ids = excluded.business_ids,
-       created_at = excluded.created_at`
-  );
+/** One user by id. This is the hot path: it runs on every authenticated call. */
+export async function findUserById(id: string): Promise<StoredUser | null> {
+  const row = await queryOne<Record<string, unknown>>('SELECT * FROM users WHERE id = ?', [id]);
+  return row ? rowToUser(row) : null;
+}
 
-  const seen: string[] = [];
-  for (const u of users) {
-    upsert.run(
+export async function findUserByEmail(email: string): Promise<StoredUser | null> {
+  // Column is not COLLATE NOCASE in libSQL by default, so compare lower-cased.
+  const row = await queryOne<Record<string, unknown>>(
+    'SELECT * FROM users WHERE lower(email) = lower(?)',
+    [email]
+  );
+  return row ? rowToUser(row) : null;
+}
+
+export async function countUsers(): Promise<number> {
+  const row = await queryOne<{ c: number }>('SELECT COUNT(*) c FROM users');
+  return Number(row?.c || 0);
+}
+
+/** Replace the stored user set: upsert every row, remove any that vanished. */
+export async function saveUsers(users: StoredUser[]): Promise<void> {
+  const statements = users.map((u) => ({
+    sql: `INSERT INTO users (id, email, name, password_salt, password_hash, email_verified,
+                             subscription, subscription_tier, usage, business_ids, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            email = excluded.email,
+            name = excluded.name,
+            password_salt = excluded.password_salt,
+            password_hash = excluded.password_hash,
+            email_verified = excluded.email_verified,
+            subscription = excluded.subscription,
+            subscription_tier = excluded.subscription_tier,
+            usage = excluded.usage,
+            business_ids = excluded.business_ids,
+            created_at = excluded.created_at`,
+    args: [
       u.id,
       u.email,
       u.name,
@@ -107,70 +127,140 @@ export function saveUsers(users: StoredUser[]) {
       n(u.subscriptionTier),
       JSON.stringify(u.usage ?? {}),
       JSON.stringify(u.businessIds ?? []),
-      n(u.createdAt)
-    );
-    seen.push(u.id);
-  }
+      n(u.createdAt),
+    ],
+  }));
 
-  if (seen.length === 0) {
-    conn.prepare('DELETE FROM users').run();
+  if (statements.length === 0) {
+    await exec('DELETE FROM users');
     return;
   }
-  const placeholders = seen.map(() => '?').join(',');
-  conn.prepare(`DELETE FROM users WHERE id NOT IN (${placeholders})`).run(...seen);
-}
 
-export function countUsers(): number {
-  const row = getDb().prepare('SELECT COUNT(*) c FROM users').get() as { c: number };
-  return Number(row?.c || 0);
+  const placeholders = users.map(() => '?').join(',');
+  statements.push({
+    sql: `DELETE FROM users WHERE id NOT IN (${placeholders})`,
+    args: users.map((u) => u.id),
+  });
+
+  // One request: either the whole set lands or none of it does.
+  const { getDb } = await import('./db');
+  await getDb().batch(statements as never[], 'write');
 }
 
 /* ----------------------------- sessions --------------------------- */
 
-export function loadSessions(): StoredSession[] {
-  const rows = getDb()
-    .prepare('SELECT token, user_id, created_at FROM sessions ORDER BY created_at')
-    .all() as Array<{ token: string; user_id: string; created_at: string }>;
-  return rows.map((r) => ({ token: r.token, userId: r.user_id, createdAt: r.created_at }));
+/**
+ * One session by token. Targeted on purpose: this runs on every authenticated
+ * request, and reading the whole table here would transfer every session over
+ * the network each time.
+ */
+export async function findSession(token: string): Promise<StoredSession | null> {
+  const row = await queryOne<{ token: string; user_id: string; created_at: string }>(
+    'SELECT token, user_id, created_at FROM sessions WHERE token = ?',
+    [token]
+  );
+  return row ? { token: row.token, userId: row.user_id, createdAt: row.created_at } : null;
 }
 
-const MAX_SESSIONS = 500;
-
-export function saveSessions(sessions: StoredSession[]) {
-  const conn = getDb();
-  // Same cap as before, applied to the newest sessions.
-  const kept = sessions.slice(-MAX_SESSIONS);
-
-  const upsert = conn.prepare(
+export async function insertSession(session: StoredSession): Promise<void> {
+  await exec(
     `INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)
-     ON CONFLICT(token) DO UPDATE SET user_id = excluded.user_id, created_at = excluded.created_at`
+     ON CONFLICT(token) DO UPDATE SET user_id = excluded.user_id, created_at = excluded.created_at`,
+    [session.token, session.userId, session.createdAt]
   );
-  for (const s of kept) {
-    upsert.run(s.token, s.userId, s.createdAt);
-  }
+}
 
-  if (kept.length === 0) {
-    conn.prepare('DELETE FROM sessions').run();
-    return;
-  }
-  const placeholders = kept.map(() => '?').join(',');
-  conn.prepare(`DELETE FROM sessions WHERE token NOT IN (${placeholders})`).run(
-    ...kept.map((s) => s.token)
+export async function deleteSession(token: string): Promise<void> {
+  await exec('DELETE FROM sessions WHERE token = ?', [token]);
+}
+
+export async function deleteUserSessions(userId: string): Promise<void> {
+  await exec('DELETE FROM sessions WHERE user_id = ?', [userId]);
+}
+
+/** Keep only the most recent sessions, so the table cannot grow forever. */
+export async function pruneSessions(keep = 500): Promise<void> {
+  await exec(
+    `DELETE FROM sessions WHERE token NOT IN (
+       SELECT token FROM sessions ORDER BY created_at DESC LIMIT ?
+     )`,
+    [keep]
   );
+}
+
+export async function loadSessions(): Promise<StoredSession[]> {
+  const rows = await query<{ token: string; user_id: string; created_at: string }>(
+    'SELECT token, user_id, created_at FROM sessions ORDER BY created_at'
+  );
+  return rows.map((r) => ({ token: r.token, userId: r.user_id, createdAt: r.created_at }));
 }
 
 /* ------------------------------ tokens ---------------------------- */
 
-export function loadTokens(): StoredToken[] {
-  const rows = getDb()
-    .prepare('SELECT token_hash, user_id, purpose, expires_at, created_at FROM email_tokens')
-    .all() as Array<{
+export async function findToken(
+  tokenHash: string,
+  purpose: string
+): Promise<StoredToken | null> {
+  const row = await queryOne<{
     token_hash: string;
     user_id: string;
     purpose: string;
     expires_at: string;
     created_at: string;
-  }>;
+  }>(
+    'SELECT token_hash, user_id, purpose, expires_at, created_at FROM email_tokens WHERE token_hash = ? AND purpose = ?',
+    [tokenHash, purpose]
+  );
+  return row
+    ? {
+        tokenHash: row.token_hash,
+        userId: row.user_id,
+        purpose: row.purpose,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at,
+      }
+    : null;
+}
+
+export async function insertToken(token: StoredToken): Promise<void> {
+  await exec(
+    `INSERT INTO email_tokens (token_hash, user_id, purpose, expires_at, created_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(token_hash) DO UPDATE SET
+       user_id = excluded.user_id, purpose = excluded.purpose,
+       expires_at = excluded.expires_at, created_at = excluded.created_at`,
+    [token.tokenHash, token.userId, token.purpose, token.expiresAt, token.createdAt]
+  );
+}
+
+export async function deleteToken(tokenHash: string): Promise<void> {
+  await exec('DELETE FROM email_tokens WHERE token_hash = ?', [tokenHash]);
+}
+
+/** Drop expired tokens for a purpose so the table stays small. */
+/**
+ * Remove any outstanding token for one user and purpose, so issuing a new one
+ * invalidates the old link (only the newest reset/verification link works).
+ */
+export async function deleteUserTokensForPurpose(
+  userId: string,
+  purpose: string
+): Promise<void> {
+  await exec('DELETE FROM email_tokens WHERE user_id = ? AND purpose = ?', [userId, purpose]);
+}
+
+export async function pruneExpiredTokens(): Promise<void> {
+  await exec('DELETE FROM email_tokens WHERE expires_at <= ?', [new Date().toISOString()]);
+}
+
+export async function loadTokens(): Promise<StoredToken[]> {
+  const rows = await query<{
+    token_hash: string;
+    user_id: string;
+    purpose: string;
+    expires_at: string;
+    created_at: string;
+  }>('SELECT token_hash, user_id, purpose, expires_at, created_at FROM email_tokens');
   return rows.map((r) => ({
     tokenHash: r.token_hash,
     userId: r.user_id,
@@ -180,92 +270,105 @@ export function loadTokens(): StoredToken[] {
   }));
 }
 
-export function saveTokens(tokens: StoredToken[]) {
-  const conn = getDb();
-  const upsert = conn.prepare(
-    `INSERT INTO email_tokens (token_hash, user_id, purpose, expires_at, created_at)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(token_hash) DO UPDATE SET
-       user_id = excluded.user_id, purpose = excluded.purpose,
-       expires_at = excluded.expires_at, created_at = excluded.created_at`
-  );
-  for (const t of tokens) {
-    upsert.run(t.tokenHash, t.userId, t.purpose, t.expiresAt, t.createdAt);
-  }
-
-  if (tokens.length === 0) {
-    conn.prepare('DELETE FROM email_tokens').run();
-    return;
-  }
-  const placeholders = tokens.map(() => '?').join(',');
-  conn.prepare(`DELETE FROM email_tokens WHERE token_hash NOT IN (${placeholders})`).run(
-    ...tokens.map((t) => t.tokenHash)
-  );
-}
-
-export { tx };
-
 /* ---------------------- targeted, atomic operations ---------------- */
 
-/** Insert a new user, refusing if the email is already taken (atomically). */
-export function insertUserIfEmailFree(user: StoredUser): boolean {
-  return tx(() => {
-    const existing = getDb()
-      .prepare('SELECT id FROM users WHERE email = ?')
-      .get(user.email) as { id: string } | undefined;
+/**
+ * Insert a new user, refusing if the email is already taken.
+ *
+ * The `users.email` column is UNIQUE, so the database itself is the arbiter —
+ * no read-then-write race is possible, and no transaction is needed.
+ */
+export async function insertUserIfEmailFree(user: StoredUser): Promise<boolean> {
+  return await tx(async () => {
+    const existing = await queryOne<{ id: string }>('SELECT id FROM users WHERE lower(email) = lower(?)', [
+      user.email,
+    ]);
     if (existing) return false;
-    saveUsers([...loadUsers(), user]);
+
+    await exec(
+      `INSERT INTO users (id, email, name, password_salt, password_hash, email_verified,
+                          subscription, subscription_tier, usage, business_ids, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        user.id,
+        user.email,
+        user.name,
+        user.passwordSalt,
+        user.passwordHash,
+        user.emailVerified ? 1 : 0,
+        JSON.stringify(user.subscription ?? { plan: 'free', status: 'active' }),
+        n(user.subscriptionTier),
+        JSON.stringify(user.usage ?? {}),
+        JSON.stringify(user.businessIds ?? []),
+        n(user.createdAt),
+      ]
+    );
     return true;
   });
 }
 
-export function findUserById(id: string): StoredUser | null {
-  return loadUsers().find((u) => u.id === id) || null;
-}
-
-export function findUserByEmail(email: string): StoredUser | null {
-  return loadUsers().find((u) => u.email.toLowerCase() === email.toLowerCase()) || null;
-}
-
 /**
- * Read one user, apply `mutate`, write it back — all inside one transaction.
- * This is the pattern that removes the lost-update risk: nothing else can read
- * the same row between the read and the write.
+ * Read one user, apply `mutate`, write that one row back — inside a
+ * transaction, so nothing can read it in between.
  */
-export function updateUser(
+export async function updateUser(
   id: string,
   mutate: (user: StoredUser) => void
-): StoredUser | null {
-  return tx(() => {
-    const users = loadUsers();
-    const record = users.find((u) => u.id === id);
+): Promise<StoredUser | null> {
+  return await tx(async () => {
+    const record = await findUserById(id);
     if (!record) return null;
+
     mutate(record);
-    saveUsers(users);
+
+    await exec(
+      `UPDATE users SET email = ?, name = ?, password_salt = ?, password_hash = ?,
+                        email_verified = ?, subscription = ?, subscription_tier = ?,
+                        usage = ?, business_ids = ?
+       WHERE id = ?`,
+      [
+        record.email,
+        record.name,
+        record.passwordSalt,
+        record.passwordHash,
+        record.emailVerified ? 1 : 0,
+        JSON.stringify(record.subscription ?? {}),
+        n(record.subscriptionTier),
+        JSON.stringify(record.usage ?? {}),
+        JSON.stringify(record.businessIds ?? []),
+        id,
+      ]
+    );
+
     return record;
   });
 }
 
-export function markEmailVerified(id: string): StoredUser | null {
-  return updateUser(id, (u) => {
+export async function markEmailVerified(id: string): Promise<StoredUser | null> {
+  return await updateUser(id, (u) => {
     u.emailVerified = true;
   });
 }
 
-/** Remove a user and everything that hangs off them, in one transaction. */
-export function deleteUserCascade(id: string) {
-  tx(() => {
-    const conn = getDb();
-    conn.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
-    conn.prepare('DELETE FROM email_tokens WHERE user_id = ?').run(id);
-    conn.prepare('DELETE FROM payments WHERE user_id = ?').run(id);
-    conn.prepare('DELETE FROM subscriptions WHERE user_id = ?').run(id);
-    conn.prepare('DELETE FROM documents WHERE user_id = ?').run(id);
-    conn.prepare('DELETE FROM users WHERE id = ?').run(id);
-  });
+/** Remove a user and everything that hangs off them, in one request. */
+export async function deleteUserCascade(id: string): Promise<void> {
+  const { getDb } = await import('./db');
+  await getDb().batch(
+    [
+      { sql: 'DELETE FROM sessions WHERE user_id = ?', args: [id] },
+      { sql: 'DELETE FROM email_tokens WHERE user_id = ?', args: [id] },
+      { sql: 'DELETE FROM payments WHERE user_id = ?', args: [id] },
+      { sql: 'DELETE FROM subscriptions WHERE user_id = ?', args: [id] },
+      { sql: 'DELETE FROM documents WHERE user_id = ?', args: [id] },
+      { sql: 'DELETE FROM users WHERE id = ?', args: [id] },
+    ] as never[],
+    'write'
+  );
 }
 
-/** Paginated listing for the monitoring scheduler. */
-export function listAllUsers(): StoredUser[] {
-  return loadUsers();
+/** Every user, for whole-table work such as scheduled monitoring. */
+export async function listAllUsers(): Promise<StoredUser[]> {
+  return await loadUsers();
 }
+
+export { tx };

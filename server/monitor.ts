@@ -48,11 +48,11 @@ export function monitoringEnabled(): boolean {
   return process.env.MONITORING_ENABLED !== 'false';
 }
 
-function isDue(user: User, businessId: string): boolean {
+async function isDue(user: User, businessId: string): Promise<boolean> {
   const days = frequencyDaysFor(user);
   if (days <= 0) return false;
 
-  const state = getBusinessState(user.id, businessId);
+  const state = await getBusinessState(user.id, businessId);
   if (!state) return true;
 
   const age = Date.now() - new Date(state.lastCheckedAt).getTime();
@@ -60,11 +60,11 @@ function isDue(user: User, businessId: string): boolean {
 }
 
 /** Next due time for a business, or null when the plan has no monitoring. */
-export function nextDueAt(user: User, businessId: string): string | null {
+export async function nextDueAt(user: User, businessId: string): Promise<string | null> {
   const days = frequencyDaysFor(user);
   if (days <= 0) return null;
 
-  const state = getBusinessState(user.id, businessId);
+  const state = await getBusinessState(user.id, businessId);
   if (!state) return new Date().toISOString();
 
   return new Date(new Date(state.lastCheckedAt).getTime() + days * 24 * 60 * 60 * 1000).toISOString();
@@ -113,7 +113,7 @@ export async function runMonitoringPass(onlyUserId?: string): Promise<Monitoring
   const results: MonitoringResult[] = [];
   if (!monitoringEnabled()) return results;
 
-  const users = listUsers();
+  const users = await listUsers();
 
   for (const user of users) {
     if (onlyUserId && user.id !== onlyUserId) continue;
@@ -121,7 +121,7 @@ export async function runMonitoringPass(onlyUserId?: string): Promise<Monitoring
     const days = frequencyDaysFor(user);
     if (days <= 0) continue;
 
-    const workspace = getWorkspace(user.id);
+    const workspace = await getWorkspace(user.id);
     if (!workspace || workspace.businesses.length === 0) continue;
 
     const plan = getPlan(user.subscription?.plan || 'free');
@@ -129,7 +129,7 @@ export async function runMonitoringPass(onlyUserId?: string): Promise<Monitoring
     for (const business of workspace.businesses) {
       if (!isDue(user, business.id)) continue;
 
-      if (!consumeUserSlot(user.id, plan.limits.monthlyAudits)) {
+      if (!await consumeUserSlot(user.id, plan.limits.monthlyAudits)) {
         results.push({
           userId: user.id,
           businessId: business.id,
@@ -156,13 +156,13 @@ export async function runMonitoringPass(onlyUserId?: string): Promise<Monitoring
           ? workspace.audits.map((a) => (a.businessId === business.id ? fresh : a))
           : [...workspace.audits, fresh];
 
-        saveWorkspace(user.id, {
+        await saveWorkspace(user.id, {
           businesses: workspace.businesses,
           audits: nextAudits,
           activeBusinessId: workspace.activeBusinessId,
         });
 
-        recordCheck(user.id, business.id, { score: fresh.overallScore });
+        await recordCheck(user.id, business.id, { score: fresh.overallScore });
 
         results.push({
           userId: user.id,
@@ -192,7 +192,7 @@ export async function runMonitoringPass(onlyUserId?: string): Promise<Monitoring
         // Re-check any tracked keywords as part of the same scheduled pass, and
         // alert on real drops (only when the search API is configured).
         // Rank tracking needs Search Console connected for this business.
-        if (isSearchConsoleConfigured() && getConnection(user.id, business.id)) {
+        if (isSearchConsoleConfigured() && await getConnection(user.id, business.id)) {
           try {
             const rank = await refreshTrackedKeywords(user.id, business);
             if (rank.alerts.length > 0) {
@@ -211,7 +211,7 @@ export async function runMonitoringPass(onlyUserId?: string): Promise<Monitoring
       } catch (err) {
         const message =
           err instanceof AuditError ? err.message : err instanceof Error ? err.message : 'Check failed';
-        recordCheck(user.id, business.id, { error: message });
+        await recordCheck(user.id, business.id, { error: message });
         console.warn(`[monitor] ${business.name} failed: ${message}`);
         results.push({
           userId: user.id,
@@ -248,8 +248,8 @@ export function startMonitoring() {
     }`
   );
 
-  timer = setInterval(() => {
-    runMonitoringPass()
+  timer = setInterval(async () => {
+    await runMonitoringPass()
       .then((results) => {
         const checked = results.filter((r) => r.status === 'checked').length;
         if (checked > 0) console.log(`[monitor] pass complete — ${checked} site(s) re-checked`);

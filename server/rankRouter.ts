@@ -41,8 +41,8 @@ import {
 export function createRankRouter(): Router {
   const router = Router();
 
-  function context(req: Request, res: Response, businessId: string) {
-    const user = getSessionUser(req);
+  async function context(req: Request, res: Response, businessId: string) {
+    const user = await getSessionUser(req);
     if (!user) {
       res.status(401).json({ error: 'Not authenticated.' });
       return null;
@@ -55,7 +55,7 @@ export function createRankRouter(): Router {
       });
       return null;
     }
-    const workspace = getWorkspace(user.id);
+    const workspace = await getWorkspace(user.id);
     const business = workspace?.businesses.find((b) => b.id === businessId);
     if (!business) {
       res.status(404).json({ error: 'Business not found.' });
@@ -66,11 +66,11 @@ export function createRankRouter(): Router {
 
   /* ------------------------ Search Console link ------------------------- */
 
-  router.get('/:businessId/connection', (req: Request, res: Response) => {
+  router.get('/:businessId/connection', async (req: Request, res: Response) => {
     const ctx = context(req, res, req.params.businessId);
     if (!ctx) return;
 
-    const connection = getConnection(ctx.user.id, ctx.business.id);
+    const connection = await getConnection(ctx.user.id, ctx.business.id);
     return res.json({
       serviceAccountConfigured: isSearchConsoleConfigured(),
       // The address the operator adds as a user on the Search Console property.
@@ -97,7 +97,7 @@ export function createRankRouter(): Router {
       });
     }
 
-    const raw = (req.body as { siteUrl?: string }).siteUrl;
+    const raw = async (req.body as { siteUrl?: string }).siteUrl;
     const siteUrl = normaliseSiteUrl(raw || ctx.business.website || '');
     if (!siteUrl) {
       return res
@@ -113,25 +113,25 @@ export function createRankRouter(): Router {
       return res.status(400).json({ error: message });
     }
 
-    connect(ctx.user.id, ctx.business.id, siteUrl);
+    await connect(ctx.user.id, ctx.business.id, siteUrl);
     return res.json({ connected: true, siteUrl });
   });
 
-  router.delete('/:businessId/connection', (req: Request, res: Response) => {
+  router.delete('/:businessId/connection', async (req: Request, res: Response) => {
     const ctx = context(req, res, req.params.businessId);
     if (!ctx) return;
-    disconnect(ctx.user.id, ctx.business.id);
+    await disconnect(ctx.user.id, ctx.business.id);
     return res.json({ connected: false });
   });
 
   /* --------------------------- tracked keywords ------------------------- */
 
-  router.get('/:businessId', (req: Request, res: Response) => {
+  router.get('/:businessId', async (req: Request, res: Response) => {
     const ctx = context(req, res, req.params.businessId);
     if (!ctx) return;
 
-    const record = getRankingRecord(ctx.user.id, ctx.business.id);
-    const connection = getConnection(ctx.user.id, ctx.business.id);
+    const record = await getRankingRecord(ctx.user.id, ctx.business.id);
+    const connection = await getConnection(ctx.user.id, ctx.business.id);
 
     return res.json({
       configured: isSearchConsoleConfigured() && connection !== null,
@@ -146,9 +146,9 @@ export function createRankRouter(): Router {
        */
       positionNote:
         'Average position over the last 28 days as reported by Google Search Console. Google publishes this 2-3 days behind, and it only covers queries your site already appeared for.',
-      keywords: record.keywords.map((kw) => {
-        const movement = detectMovement(kw);
-        const latest = [...kw.history].reverse().find((s) => !s.error);
+      keywords: record.keywords.map(async (kw) => {
+        const movement = await detectMovement(kw);
+        const latest = [...kw.history].reverse().find(async (s) => !s.error);
         return {
           keyword: kw.keyword,
           createdAt: kw.createdAt,
@@ -160,7 +160,7 @@ export function createRankRouter(): Router {
           latestError: kw.history.length ? [...kw.history].reverse()[0].error ?? null : null,
           checks: kw.history.length,
           movement,
-          trend: positionTrend(kw),
+          trend: await positionTrend(kw),
           history: kw.history.slice(-12),
         };
       }),
@@ -171,7 +171,7 @@ export function createRankRouter(): Router {
     const ctx = context(req, res, req.params.businessId);
     if (!ctx) return;
 
-    if (!getConnection(ctx.user.id, ctx.business.id)) {
+    if (!await getConnection(ctx.user.id, ctx.business.id)) {
       return res.status(409).json({
         error:
           'Connect Google Search Console for this business first — positions come from Google, not from scraping search results.',
@@ -184,7 +184,7 @@ export function createRankRouter(): Router {
       return res.status(400).json({ error: 'Enter a keyword to track.' });
     }
 
-    const added = trackKeyword(ctx.user.id, ctx.business.id, keyword);
+    const added = await trackKeyword(ctx.user.id, ctx.business.id, keyword);
     if (!added.ok) {
       return res.status(400).json({ error: added.error });
     }
@@ -193,7 +193,7 @@ export function createRankRouter(): Router {
     const clean = keyword.trim();
     const result = await checkKeyword(ctx.user.id, ctx.business.id, clean);
 
-    recordSnapshot(ctx.user.id, ctx.business.id, clean, {
+    await recordSnapshot(ctx.user.id, ctx.business.id, clean, {
       checkedAt: new Date().toISOString(),
       position: result.error ? null : result.position,
       resultsCount: result.impressions,
@@ -210,7 +210,7 @@ export function createRankRouter(): Router {
     const ctx = context(req, res, req.params.businessId);
     if (!ctx) return;
 
-    if (!getConnection(ctx.user.id, ctx.business.id)) {
+    if (!await getConnection(ctx.user.id, ctx.business.id)) {
       return res
         .status(409)
         .json({ error: 'Connect Google Search Console for this business first.', needsConnection: true });
@@ -225,11 +225,11 @@ export function createRankRouter(): Router {
     }
   });
 
-  router.delete('/:businessId/:keyword', (req: Request, res: Response) => {
+  router.delete('/:businessId/:keyword', async (req: Request, res: Response) => {
     const ctx = context(req, res, req.params.businessId);
     if (!ctx) return;
 
-    const removed = untrackKeyword(ctx.user.id, ctx.business.id, req.params.keyword);
+    const removed = await untrackKeyword(ctx.user.id, ctx.business.id, req.params.keyword);
     if (!removed) {
       return res.status(404).json({ error: 'That keyword is not being tracked.' });
     }

@@ -11,14 +11,21 @@ import { removeAnalyticsData } from './analyticsStore';
 import { removeRankingData } from './rankStore';
 import { removeSearchConsoleData } from './searchConsoleStore';
 import {
+  deleteSession,
   deleteUserCascade,
+  deleteUserSessions,
+  deleteUserTokensForPurpose,
+  deleteToken,
+  findSession,
+  findToken,
+  findUserById,
+  insertSession,
+  insertToken,
   insertUserIfEmailFree,
-  loadSessions,
-  loadTokens,
   loadUsers,
   markEmailVerified,
-  saveSessions,
-  saveTokens,
+  pruneExpiredTokens,
+  pruneSessions,
   saveUsers,
   tx,
   updateUser,
@@ -67,7 +74,7 @@ const SESSION_TTL_MS =
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 const RESET_TTL_MS = 60 * 60 * 1000;
 
-function ensureDataDir() {
+async function ensureDataDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
@@ -77,44 +84,48 @@ function ensureDataDir() {
  * transaction by the caller, so the read and the write cannot be split by
  * another request.
  */
-function readJson<T>(file: string, fallback: T): T {
+async function readJson<T>(file: string, fallback: T): Promise<T> {
   try {
-    if (file === USERS_FILE) return loadUsers() as unknown as T;
-    if (file === SESSIONS_FILE) return loadSessions() as unknown as T;
-    if (file === TOKENS_FILE) return loadTokens() as unknown as T;
+    if (file === USERS_FILE) return (await loadUsers()) as unknown as T;
   } catch (err) {
     console.warn('[auth] load failed:', err instanceof Error ? err.message : err);
   }
   return fallback;
 }
 
-function writeJson(file: string, data: unknown) {
-  if (file === USERS_FILE) return saveUsers(data as Parameters<typeof saveUsers>[0]);
-  if (file === SESSIONS_FILE) return saveSessions(data as Parameters<typeof saveSessions>[0]);
-  if (file === TOKENS_FILE) return saveTokens(data as Parameters<typeof saveTokens>[0]);
+/**
+ * Sessions and tokens are written row-by-row now (insertSession, insertToken,
+ * deleteToken, …) rather than by saving a whole array back. Only the users
+ * table still goes through this shim, because several handlers legitimately
+ * mutate it as a set inside a transaction.
+ */
+async function writeJson(file: string, data: unknown): Promise<void> {
+  if (file === USERS_FILE) {
+    await saveUsers(data as Parameters<typeof saveUsers>[0]);
+  }
 }
 
-function hashPassword(password: string, salt: string): string {
+async function hashPassword(password: string, salt: string): Promise<string> {
   return crypto.scryptSync(password, salt, 64).toString('hex');
 }
 
-function verifyPassword(password: string, salt: string, expectedHash: string): boolean {
+async function verifyPassword(password: string, salt: string, expectedHash: string): Promise<boolean> {
   const candidate = hashPassword(password, salt);
   const a = Buffer.from(candidate, 'hex');
   const b = Buffer.from(expectedHash, 'hex');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function toPublicUser(record: UserRecord): User {
+async function toPublicUser(record: UserRecord): Promise<User> {
   const { passwordSalt: _salt, passwordHash: _hash, ...user } = record;
   return user;
 }
 
 // Activate a subscription plan on a user record. Called only after a
 // payment has been verified (Paynow webhook/poll or demo confirmation).
-export function updateUserSubscription(userId: string, plan: SubscriptionTier): User | null {
-  return tx(() => {
-  const users = readJson<UserRecord[]>(USERS_FILE, []);
+export async function updateUserSubscription(userId: string, plan: SubscriptionTier): Promise<User | null> {
+  return await tx(async () => {
+  const users = await readJson<UserRecord[]>(USERS_FILE, []);
   const record = users.find((u) => u.id === userId);
   if (!record) return null;
 
@@ -124,18 +135,22 @@ export function updateUserSubscription(userId: string, plan: SubscriptionTier): 
     status: 'active',
   };
   record.subscriptionTier = plan;
-  writeJson(USERS_FILE, users);
+  await writeJson(USERS_FILE, users);
   return toPublicUser(record);
   });
 }
 
 // Record usage server-side so plan limits cannot be bypassed by the client.
-export function recordUsage(
+export async function recordUsage(
   userId: string,
-  update: { audits?: number; pages?: number; aiRequests?: number }
+  update:  { audits?: number; pages?: number; aiRequests?: number }
 ): void {
-  tx(() => {
-  const users = readJson<UserRecord[]>(USERS_FILE, []);
+
+
+
+
+  await tx(async () => {
+  const users = await readJson<UserRecord[]>(USERS_FILE, []);
   const record = users.find((u) => u.id === userId);
   if (!record) return;
 
@@ -144,24 +159,29 @@ export function recordUsage(
     pagesCrawled: (record.usage?.pagesCrawled || 0) + (update.pages || 0),
     aiRequests: (record.usage?.aiRequests || 0) + (update.aiRequests || 0),
   };
-  writeJson(USERS_FILE, users);
+  await writeJson(USERS_FILE, users);
   });
 }
 
-function createSession(userId: string): string {
-  return tx(() => {
-  const sessions = readJson<SessionRecord[]>(SESSIONS_FILE, []);
+async function createSession(userId: string): Promise<string> {
   const token = crypto.randomBytes(32).toString('hex');
-  sessions.push({ token, userId, createdAt: new Date().toISOString() });
-  // Keep only the most recent 500 sessions to prevent unbounded growth
-  writeJson(SESSIONS_FILE, sessions.slice(-500));
+  await insertSession({ token, userId, createdAt: new Date().toISOString() });
+  // Keep only the most recent sessions so the table cannot grow forever.
+  await pruneSessions(500);
   return token;
-  });
 }
 
-export function getSessionUser(req: {
+/**
+ * Resolve the bearer token to a user.
+ *
+ * Two targeted single-row reads — one session by token, one user by id. This
+ * runs on every authenticated request, so reading whole tables here (as an
+ * earlier version did) would transfer the entire sessions and users tables over
+ * the network on each call now that the database is hosted.
+ */
+export async function getSessionUser(req: {
   headers: Record<string, string | string[] | undefined>;
-}): User | null {
+}): Promise<User | null> {
   const authHeader = req.headers['authorization'];
   if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
     return null;
@@ -169,29 +189,22 @@ export function getSessionUser(req: {
   const token = authHeader.slice('Bearer '.length).trim();
   if (!token) return null;
 
-  const sessions = readJson<SessionRecord[]>(SESSIONS_FILE, []);
-  const session = sessions.find((s) => s.token === token);
+  const session = await findSession(token);
   if (!session) return null;
 
   // Sessions expire so a leaked token does not work forever.
   const age = Date.now() - new Date(session.createdAt).getTime();
   if (!Number.isFinite(age) || age > SESSION_TTL_MS) {
-    tx(() =>
-      writeJson(
-        SESSIONS_FILE,
-        sessions.filter((s) => s.token !== token)
-      )
-    );
+    await deleteSession(token);
     return null;
   }
 
-  const users = readJson<UserRecord[]>(USERS_FILE, []);
-  const record = users.find((u) => u.id === session.userId);
+  const record = await findUserById(session.userId);
   if (!record) return null;
   return toPublicUser(record);
 }
 
-function validateEmail(email: string): boolean {
+async function validateEmail(email: string): Promise<boolean> {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
@@ -199,48 +212,42 @@ function validateEmail(email: string): boolean {
 /* Single-use email tokens (verification + password reset)            */
 /* ------------------------------------------------------------------ */
 
-function pruneTokens(tokens: TokenRecord[]): TokenRecord[] {
+async function pruneTokens(tokens: TokenRecord[]): Promise<TokenRecord[]> {
   const now = Date.now();
   return tokens.filter((t) => new Date(t.expiresAt).getTime() > now);
 }
 
-function issueToken(userId: string, purpose: TokenPurpose, ttlMs: number): string {
-  return tx(() => {
-  const tokens = pruneTokens(readJson<TokenRecord[]>(TOKENS_FILE, []));
+async function issueToken(userId: string, purpose: TokenPurpose, ttlMs: number): Promise<string> {
   const { token, tokenHash } = generateToken();
   const now = Date.now();
 
-  // One outstanding token per purpose per user.
-  const next = tokens.filter((t) => !(t.userId === userId && t.purpose === purpose));
-  next.push({
-    tokenHash,
-    userId,
-    purpose,
-    expiresAt: new Date(now + ttlMs).toISOString(),
-    createdAt: new Date(now).toISOString(),
+  await tx(async () => {
+    // One outstanding token per purpose per user.
+    await deleteUserTokensForPurpose(userId, purpose);
+    await insertToken({
+      tokenHash,
+      userId,
+      purpose,
+      expiresAt: new Date(now + ttlMs).toISOString(),
+      createdAt: new Date(now).toISOString(),
+    });
   });
 
-  writeJson(TOKENS_FILE, next);
+  // Keep the table small.
+  await pruneExpiredTokens();
   return token;
-  });
 }
 
-function consumeToken(token: string, purpose: TokenPurpose): string | null {
-  return tx(() => {
-  const tokens = pruneTokens(readJson<TokenRecord[]>(TOKENS_FILE, []));
+async function consumeToken(token: string, purpose: TokenPurpose): Promise<string | null> {
   const wanted = hashToken(token);
-  const match = tokens.find((t) => t.tokenHash === wanted && t.purpose === purpose);
 
-  if (!match) {
-    writeJson(TOKENS_FILE, tokens);
-    return null;
-  }
+  return await tx(async () => {
+    const match = await findToken(wanted, purpose);
+    if (!match) return null;
 
-  writeJson(
-    TOKENS_FILE,
-    tokens.filter((t) => t.tokenHash !== wanted)
-  );
-  return match.userId;
+    // Single use.
+    await deleteToken(wanted);
+    return match.userId;
   });
 }
 
@@ -263,22 +270,16 @@ async function sendVerification(
   return { sent: result.sent };
 }
 
-function invalidateSessions(userId: string) {
-  tx(() => {
-    const sessions = readJson<SessionRecord[]>(SESSIONS_FILE, []);
-    writeJson(
-      SESSIONS_FILE,
-      sessions.filter((s) => s.userId !== userId)
-    );
-  });
+async function invalidateSessions(userId: string): Promise<void> {
+  await deleteUserSessions(userId);
 }
 
 /** Public user records — used by the monitoring scheduler. No secrets included. */
-export function listUsers(): User[] {
-  return readJson<UserRecord[]>(USERS_FILE, []).map(toPublicUser);
+export async function listUsers(): Promise<User[]> {
+  return await readJson<UserRecord[]>(USERS_FILE, []).map(toPublicUser);
 }
 
-export function createAuthRouter(): Router {
+export async function createAuthRouter(): Promise<Router> {
   const router = Router();
 
   // Register a new account
@@ -333,7 +334,7 @@ export function createAuthRouter(): Router {
 
       // Refuses if the email was taken in the meantime — checked and inserted
       // in the same transaction so two simultaneous signups cannot both win.
-      if (!insertUserIfEmailFree(record)) {
+      if (!await insertUserIfEmailFree(record)) {
         return res
           .status(409)
           .json({ error: 'An account with this email already exists. Try logging in instead.' });
@@ -341,7 +342,7 @@ export function createAuthRouter(): Router {
       
       // Create free subscription record
       try {
-        createSubscription(record.id, 'free', 0);
+        await createSubscription(record.id, 'free', 0);
       } catch (err) {
         console.warn('Failed to create free subscription record:', err);
       }
@@ -363,16 +364,16 @@ export function createAuthRouter(): Router {
   });
 
   // Login with email + password
-  router.post('/login', (req, res) => {
+  router.post('/login', async (req, res) => {
     try {
       const { email, password } = req.body as { email?: string; password?: string };
-      const cleanEmail = (email || '').trim().toLowerCase();
+      const cleanEmail = async (email || '').trim().toLowerCase();
 
       if (!validateEmail(cleanEmail) || !password) {
         return res.status(400).json({ error: 'Please enter both email and password.' });
       }
 
-      const users = readJson<UserRecord[]>(USERS_FILE, []);
+      const users = await readJson<UserRecord[]>(USERS_FILE, []);
       const record = users.find((u) => u.email.toLowerCase() === cleanEmail);
       if (!record || !verifyPassword(password, record.passwordSalt, record.passwordHash)) {
         return res.status(401).json({ error: 'Invalid email or password.' });
@@ -387,8 +388,8 @@ export function createAuthRouter(): Router {
   });
 
   // Restore the current session
-  router.get('/me', (req, res) => {
-    const user = getSessionUser(req);
+  router.get('/me', async (req, res) => {
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
@@ -398,7 +399,7 @@ export function createAuthRouter(): Router {
   /* ---------------- Email verification ---------------- */
 
   // Confirm an email address from the link we sent
-  router.post('/verify-email', (req, res) => {
+  router.post('/verify-email', async (req, res) => {
     const { token } = req.body as { token?: string };
     if (!token) {
       return res.status(400).json({ error: 'Verification token is missing.' });
@@ -411,7 +412,7 @@ export function createAuthRouter(): Router {
         .json({ error: 'This link is invalid or has expired. Request a new one below.' });
     }
 
-    const record = markEmailVerified(userId);
+    const record = await markEmailVerified(userId);
     if (!record) {
       return res.status(404).json({ error: 'Account not found.' });
     }
@@ -420,12 +421,12 @@ export function createAuthRouter(): Router {
 
   // Send a fresh verification link to the signed-in user
   router.post('/resend-verification', async (req, res) => {
-    const sessionUser = getSessionUser(req);
+    const sessionUser = await getSessionUser(req);
     if (!sessionUser) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
 
-    const users = readJson<UserRecord[]>(USERS_FILE, []);
+    const users = await readJson<UserRecord[]>(USERS_FILE, []);
     const record = users.find((u) => u.id === sessionUser.id);
     if (!record) {
       return res.status(404).json({ error: 'Account not found.' });
@@ -439,8 +440,8 @@ export function createAuthRouter(): Router {
   });
 
   // Whether this deployment can actually deliver mail
-  router.get('/email-status', (req, res) => {
-    const sessionUser = getSessionUser(req);
+  router.get('/email-status', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
     if (!sessionUser) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
@@ -452,7 +453,7 @@ export function createAuthRouter(): Router {
   // Always answers the same way so the endpoint cannot enumerate accounts.
   router.post('/forgot-password', async (req, res) => {
     const { email } = req.body as { email?: string };
-    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanEmail = async (email || '').trim().toLowerCase();
     const genericResponse = {
       message: 'If an account exists for that address, a reset link is on its way.',
     };
@@ -461,7 +462,7 @@ export function createAuthRouter(): Router {
       return res.json(genericResponse);
     }
 
-    const users = readJson<UserRecord[]>(USERS_FILE, []);
+    const users = await readJson<UserRecord[]>(USERS_FILE, []);
     const record = users.find((u) => u.email.toLowerCase() === cleanEmail);
     if (!record) {
       return res.json(genericResponse);
@@ -495,7 +496,7 @@ export function createAuthRouter(): Router {
     }
 
     const salt = crypto.randomBytes(16).toString('hex');
-    const record = updateUser(userId, (user) => {
+    const record = await updateUser(userId, async (user) => {
       user.passwordSalt = salt;
       user.passwordHash = hashPassword(password, salt);
     });
@@ -524,8 +525,8 @@ export function createAuthRouter(): Router {
   });
 
   // Update the signed-in user's profile / subscription / usage
-  router.patch('/user', (req, res) => {
-    const sessionUser = getSessionUser(req);
+  router.patch('/user', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
     if (!sessionUser) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
@@ -533,7 +534,7 @@ export function createAuthRouter(): Router {
     try {
       const patch = req.body as Partial<User>;
       // One transaction: read this user, apply the patch, write it back.
-      const record = updateUser(sessionUser.id, (record) => {
+      const record = await updateUser(sessionUser.id, async (record) => {
       if (typeof patch.name === 'string' && patch.name.trim()) {
         record.name = patch.name.trim();
       }
@@ -577,8 +578,8 @@ export function createAuthRouter(): Router {
   });
 
   // Change password for the signed-in user
-  router.post('/user/password', (req, res) => {
-    const sessionUser = getSessionUser(req);
+  router.post('/user/password', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
     if (!sessionUser) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
@@ -594,8 +595,8 @@ export function createAuthRouter(): Router {
         });
       }
 
-      const users = readJson<UserRecord[]>(USERS_FILE, []);
-      const record = users.find((u) => u.id === sessionUser.id);
+      const users = await readJson<UserRecord[]>(USERS_FILE, []);
+      const record = users.find(async (u) => u.id === sessionUser.id);
       if (!record) {
         return res.status(404).json({ error: 'Account not found.' });
       }
@@ -606,7 +607,7 @@ export function createAuthRouter(): Router {
       const newSalt = crypto.randomBytes(16).toString('hex');
       record.passwordSalt = newSalt;
       record.passwordHash = hashPassword(newPassword, newSalt);
-      writeJson(USERS_FILE, users);
+      await writeJson(USERS_FILE, users);
       return res.json({ ok: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to change password';
@@ -615,8 +616,8 @@ export function createAuthRouter(): Router {
   });
 
   // Delete the signed-in user's account
-  router.delete('/account', (req, res) => {
-    const sessionUser = getSessionUser(req);
+  router.delete('/account', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
     if (!sessionUser) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
@@ -624,13 +625,13 @@ export function createAuthRouter(): Router {
     try {
       // One transaction removes the user, their sessions, tokens, payments,
       // subscriptions and every document row keyed to them.
-      deleteUserCascade(sessionUser.id);
-      removeWorkspace(sessionUser.id);
-      removeCompetitorData(sessionUser.id);
-      removeMonitorData(sessionUser.id);
-      removeAnalyticsData(sessionUser.id);
-      removeRankingData(sessionUser.id);
-      removeSearchConsoleData(sessionUser.id);
+      await deleteUserCascade(sessionUser.id);
+      await removeWorkspace(sessionUser.id);
+      await removeCompetitorData(sessionUser.id);
+      await removeMonitorData(sessionUser.id);
+      await removeAnalyticsData(sessionUser.id);
+      await removeRankingData(sessionUser.id);
+      await removeSearchConsoleData(sessionUser.id);
       return res.json({ ok: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to delete account';

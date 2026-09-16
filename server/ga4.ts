@@ -128,7 +128,7 @@ export async function fetchAnalyticsSummary(
   const dateRanges = [{ startDate: `${rangeDays}daysAgo`, endDate: 'today' }];
 
   const [totalsRes, trendRes, landingRes, channelRes, deviceRes] = await Promise.all([
-    runReport(propertyId, {
+    await runReport(propertyId, {
       dateRanges,
       metrics: [
         { name: 'sessions' },
@@ -138,13 +138,13 @@ export async function fetchAnalyticsSummary(
         { name: 'screenPageViews' },
       ],
     }),
-    runReport(propertyId, {
+    await runReport(propertyId, {
       dateRanges,
       dimensions: [{ name: 'date' }],
       metrics: [{ name: 'sessions' }],
       orderBys: [{ dimension: { dimensionName: 'date' } }],
     }),
-    runReport(propertyId, {
+    await runReport(propertyId, {
       dateRanges,
       dimensions: [{ name: 'landingPagePlusQueryString' }],
       metrics: [
@@ -155,14 +155,14 @@ export async function fetchAnalyticsSummary(
       orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
       limit: 12,
     }),
-    runReport(propertyId, {
+    await runReport(propertyId, {
       dateRanges,
       dimensions: [{ name: 'sessionDefaultChannelGroup' }],
       metrics: [{ name: 'sessions' }, { name: 'bounceRate' }],
       orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
       limit: 6,
     }),
-    runReport(propertyId, {
+    await runReport(propertyId, {
       dateRanges,
       dimensions: [{ name: 'deviceCategory' }],
       metrics: [{ name: 'sessions' }, { name: 'bounceRate' }],

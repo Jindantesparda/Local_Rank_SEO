@@ -47,14 +47,14 @@ function readJson<T>(_file: string, fallback: T): T {
 }
 
 function writeJson(_file: string, _data: unknown) {
-  /* no-op: see updateUser() below */
+  /* no-op: see await updateUser() below */
 }
 
-function updateUserSubscription(userId: string, plan: SubscriptionTier, status: string) {
+async function updateUserSubscription(userId: string, plan: SubscriptionTier, status: string) {
   const now = new Date();
   const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  const user = updateUser(userId, (record) => {
+  const user = await updateUser(userId, async (record) => {
     record.subscription.plan = plan;
     record.subscription.status = status as typeof record.subscription.status;
     record.subscription.currentPeriodStart = now.toISOString();
@@ -83,15 +83,15 @@ export function createBillingRouter(): Router {
   // ==================== AUTHENTICATED ROUTES ====================
 
   // GET /api/billing/me - Get current user's subscription and payment info
-  router.get('/me', (req, res) => {
-    const user = getSessionUser(req);
+  router.get('/me', async (req, res) => {
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
 
     try {
-      const activeSubscription = getUserActiveSubscription(user.id);
-      const payments = getUserPayments(user.id);
+      const activeSubscription = await getUserActiveSubscription(user.id);
+      const payments = await getUserPayments(user.id);
       const currentPlan = getPlan(user.subscription.plan);
 
       return res.json({
@@ -110,7 +110,7 @@ export function createBillingRouter(): Router {
 
   // POST /api/billing/checkout - Initiate payment checkout
   router.post('/checkout', async (req, res) => {
-    const user = getSessionUser(req);
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
@@ -205,7 +205,7 @@ export function createBillingRouter(): Router {
       const reference =
         webhookPayload.reference || webhookPayload.paynowreference || '';
       const payment = reference
-        ? getPaymentByProviderReference(reference)
+        ? await getPaymentByProviderReference(reference)
         : null;
       if (!payment) {
         console.warn(`[Billing] Payment not found for webhook reference: ${reference}`);
@@ -230,21 +230,21 @@ export function createBillingRouter(): Router {
 
       if (verification.status === 'success') {
         // Gateway confirmed the transaction. Mark payment as PAID.
-        updatePaymentStatus(payment.id, 'paid', new Date().toISOString());
+        await updatePaymentStatus(payment.id, 'paid', new Date().toISOString());
 
         // Activate the plan that was actually purchased (stored on the payment).
         const purchasedPlan = payment.plan || 'pro';
 
-        const user = findUserById(payment.userId);
+        const user = await findUserById(payment.userId);
         if (!user) {
           console.error(`[Billing] User not found: ${payment.userId}`);
           return res.status(404).json({ error: 'User not found' });
         }
 
         // Create subscription + update the user record
-        const subscription = createSubscription(payment.userId, purchasedPlan, 30);
-        updateUserSubscription(payment.userId, purchasedPlan, 'active');
-        updatePaymentSubscription(payment.id, subscription.id);
+        const subscription = await createSubscription(payment.userId, purchasedPlan, 30);
+        await updateUserSubscription(payment.userId, purchasedPlan, 'active');
+        await updatePaymentSubscription(payment.id, subscription.id);
 
         console.log(`[Billing] Subscription activated`, {
           userId: payment.userId,
@@ -259,7 +259,7 @@ export function createBillingRouter(): Router {
           subscriptionId: subscription.id,
         });
       } else if (verification.status === 'failed') {
-        updatePaymentStatus(payment.id, 'failed', new Date().toISOString());
+        await updatePaymentStatus(payment.id, 'failed', new Date().toISOString());
 
         console.log(`[Billing] Payment failed`, {
           paymentId: payment.id,
@@ -287,14 +287,14 @@ export function createBillingRouter(): Router {
   });
 
   // GET /api/billing/payment/:paymentId - Get payment details
-  router.get('/payment/:paymentId', (req, res) => {
-    const user = getSessionUser(req);
+  router.get('/payment/:paymentId', async (req, res) => {
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
 
     try {
-      const payment = getPayment(req.params.paymentId);
+      const payment = await getPayment(req.params.paymentId);
       if (!payment || payment.userId !== user.id) {
         return res.status(404).json({ error: 'Payment not found.' });
       }
@@ -307,20 +307,20 @@ export function createBillingRouter(): Router {
   });
 
   // POST /api/billing/cancel-subscription - Cancel user's subscription
-  router.post('/cancel-subscription', (req, res) => {
-    const user = getSessionUser(req);
+  router.post('/cancel-subscription', async (req, res) => {
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
 
     try {
-      const subscription = getUserActiveSubscription(user.id);
+      const subscription = await getUserActiveSubscription(user.id);
       if (!subscription) {
         return res.status(404).json({ error: 'No active subscription found.' });
       }
 
-      cancelSubscription(subscription.id);
-      updateUserSubscription(user.id, 'free', 'canceled');
+      await cancelSubscription(subscription.id);
+      await updateUserSubscription(user.id, 'free', 'canceled');
 
       console.log(`[Billing] Subscription cancelled`, {
         userId: user.id,

@@ -12,18 +12,18 @@ import { getBusinessState, getUserWindow } from './monitorStore';
  *   GET  /api/monitor/status  → per-business last check + next due + allowance
  *   POST /api/monitor/run     → check now (subject to the plan's allowance)
  */
-export function createMonitorRouter(): Router {
+export async function createMonitorRouter(): Promise<Router> {
   const router = Router();
 
-  router.get('/status', (req: Request, res: Response) => {
-    const user = getSessionUser(req);
+  router.get('/status', async (req: Request, res: Response) => {
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }
 
     const plan = getPlan(user.subscription?.plan || 'free');
-    const workspace = getWorkspace(user.id);
-    const window = getUserWindow(user.id);
+    const workspace = await getWorkspace(user.id);
+    const window = await getUserWindow(user.id);
 
     return res.json({
       enabled: monitoringEnabled(),
@@ -33,8 +33,8 @@ export function createMonitorRouter(): Router {
       monthlyAllowance: plan.limits.monthlyAudits,
       usedThisPeriod: window?.count || 0,
       periodStart: window?.periodStart || null,
-      businesses: (workspace?.businesses || []).map((b) => {
-        const state = getBusinessState(user.id, b.id);
+      businesses: (workspace?.businesses || []).map(async (b) => {
+        const state = await getBusinessState(user.id, b.id);
         return {
           businessId: b.id,
           name: b.name,
@@ -42,14 +42,14 @@ export function createMonitorRouter(): Router {
           lastScore: state?.lastScore ?? null,
           checks: state?.checks || 0,
           lastError: state?.lastError || null,
-          nextDueAt: nextDueAt(user, b.id),
+          nextDueAt: await nextDueAt(user, b.id),
         };
       }),
     });
   });
 
   router.post('/run', async (req: Request, res: Response) => {
-    const user = getSessionUser(req);
+    const user = await getSessionUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Not authenticated.' });
     }

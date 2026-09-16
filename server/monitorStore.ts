@@ -4,8 +4,8 @@ import { docDeleteByUser, docGet, docPut } from './db';
  * Scheduling state for automated monitoring.
  *
  * Two kinds of row:
- *   `monitor` / `${userId}::${businessId}`          → per-business check state
- *   `monitor` / `window::${userId}`                 → the rolling 30-day allowance
+ *   `monitor` / `${userId}::${businessId}`   → per-business check state
+ *   `monitor` / `window::${userId}`          → the rolling 30-day allowance
  */
 
 const NS = 'monitor' as const;
@@ -31,20 +31,20 @@ function windowKey(userId: string): string {
   return `window::${userId}`;
 }
 
-export function getBusinessState(
+export async function getBusinessState(
   userId: string,
   businessId: string
-): BusinessMonitorState | null {
+): Promise<BusinessMonitorState | null> {
   return docGet<BusinessMonitorState>(NS, businessKey(userId, businessId));
 }
 
-export function recordCheck(
+export async function recordCheck(
   userId: string,
   businessId: string,
   patch: { score?: number; error?: string }
-) {
+): Promise<void> {
   const key = businessKey(userId, businessId);
-  const previous = docGet<BusinessMonitorState>(NS, key);
+  const previous = await docGet<BusinessMonitorState>(NS, key);
 
   const next: BusinessMonitorState = {
     lastCheckedAt: new Date().toISOString(),
@@ -53,18 +53,18 @@ export function recordCheck(
     lastError: patch.error,
   };
 
-  docPut(NS, key, userId, next);
+  await docPut(NS, key, userId, next);
 }
 
 /** Returns true when the user is still inside their plan's monthly allowance. */
-export function consumeUserSlot(userId: string, monthlyAllowance: number): boolean {
+export async function consumeUserSlot(userId: string, monthlyAllowance: number): Promise<boolean> {
   const key = windowKey(userId);
   const now = Date.now();
   const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
-  const existing = docGet<UserMonitorWindow>(NS, key);
+  const existing = await docGet<UserMonitorWindow>(NS, key);
 
   if (!existing || now - new Date(existing.periodStart).getTime() > THIRTY_DAYS) {
-    docPut(NS, key, userId, { periodStart: new Date(now).toISOString(), count: 1 });
+    await docPut(NS, key, userId, { periodStart: new Date(now).toISOString(), count: 1 });
     return true;
   }
 
@@ -72,14 +72,17 @@ export function consumeUserSlot(userId: string, monthlyAllowance: number): boole
     return false;
   }
 
-  docPut(NS, key, userId, { periodStart: existing.periodStart, count: existing.count + 1 });
+  await docPut(NS, key, userId, {
+    periodStart: existing.periodStart,
+    count: existing.count + 1,
+  });
   return true;
 }
 
-export function getUserWindow(userId: string): UserMonitorWindow | null {
+export async function getUserWindow(userId: string): Promise<UserMonitorWindow | null> {
   return docGet<UserMonitorWindow>(NS, windowKey(userId));
 }
 
-export function removeMonitorData(userId: string) {
-  docDeleteByUser(userId);
+export async function removeMonitorData(userId: string): Promise<void> {
+  await docDeleteByUser(userId);
 }

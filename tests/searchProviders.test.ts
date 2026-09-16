@@ -205,7 +205,7 @@ describe('Search Console client', () => {
   test('a property the account cannot see is explained, not swallowed', async () => {
     const { verifySite } = await import('../server/searchConsole');
     await assert.rejects(
-      () => verifySite('sc-domain:someone-elses.example'),
+      async () => await verifySite('sc-domain:someone-elses.example'),
       /cannot see|Add the service account/i
     );
   });

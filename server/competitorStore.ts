@@ -19,7 +19,7 @@ function key(userId: string, businessId: string): string {
   return `${userId}::${businessId}`;
 }
 
-export function getCompetitorRecord(userId: string, businessId: string): CompetitorRecord {
+export async function getCompetitorRecord(userId: string, businessId: string): Promise<CompetitorRecord>  {
   return (
     docGet<CompetitorRecord>(NS, key(userId, businessId)) || {
       urls: [],
@@ -29,21 +29,21 @@ export function getCompetitorRecord(userId: string, businessId: string): Competi
   );
 }
 
-export function saveCompetitorRecord(
+export async function saveCompetitorRecord(
   userId: string,
   businessId: string,
   patch: Partial<Pick<CompetitorRecord, 'urls' | 'results'>>
-): CompetitorRecord {
-  const existing = getCompetitorRecord(userId, businessId);
+): Promise<CompetitorRecord>  {
+  const existing = await getCompetitorRecord(userId, businessId);
   const record: CompetitorRecord = {
     urls: patch.urls !== undefined ? patch.urls : existing.urls,
     results: patch.results !== undefined ? patch.results : existing.results,
     updatedAt: new Date().toISOString(),
   };
-  docPut(NS, key(userId, businessId), userId, record);
+  await docPut(NS, key(userId, businessId), userId, record);
   return record;
 }
 
-export function removeCompetitorData(userId: string) {
-  docDeleteByUser(userId);
+export async function removeCompetitorData(userId: string) {
+  await docDeleteByUser(userId);
 }

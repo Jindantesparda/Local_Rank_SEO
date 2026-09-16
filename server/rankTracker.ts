@@ -47,12 +47,12 @@ export interface RankCheckResult {
 }
 
 /** Is rank tracking usable for this business right now? */
-export function rankSourceStatus(userId: string, businessId: string): {
+export async function rankSourceStatus(userId: string, businessId: string): {
   configured: boolean;
   connected: boolean;
   siteUrl: string | null;
 } {
-  const connection = getConnection(userId, businessId);
+  const connection = await getConnection(userId, businessId);
   return {
     configured: isSearchConsoleConfigured(),
     connected: connection !== null,
@@ -65,7 +65,7 @@ export async function checkKeyword(
   businessId: string,
   keyword: string
 ): Promise<RankCheckResult> {
-  const connection = getConnection(userId, businessId);
+  const connection = await getConnection(userId, businessId);
   if (!connection) {
     return {
       keyword,
@@ -186,10 +186,10 @@ export async function refreshTrackedKeywords(
   userId: string,
   business: Business
 ): Promise<{ checked: number; alerts: RankMovement[]; errors: number }> {
-  const record = getRankingRecord(userId, business.id);
+  const record = await getRankingRecord(userId, business.id);
   if (record.keywords.length === 0) return { checked: 0, alerts: [], errors: 0 };
 
-  const connection = getConnection(userId, business.id);
+  const connection = await getConnection(userId, business.id);
   if (!connection) {
     return { checked: 0, alerts: [], errors: 0 };
   }
@@ -202,15 +202,15 @@ export async function refreshTrackedKeywords(
   let positions: Map<string, KeywordPosition>;
   try {
     positions = await fetchKeywordPositions(connection.siteUrl, keywords, WINDOW_DAYS);
-    recordFetch(userId, business.id);
+    await recordFetch(userId, business.id);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Rank check failed.';
-    recordFetch(userId, business.id, message);
+    await recordFetch(userId, business.id, message);
 
     // Record the failure against every keyword so the gap is explainable and
     // the history shows a reason rather than a phantom drop.
     for (const keyword of keywords) {
-      recordSnapshot(userId, business.id, keyword, {
+      await recordSnapshot(userId, business.id, keyword, {
         checkedAt: new Date().toISOString(),
         position: null,
         resultsCount: 0,
@@ -228,7 +228,7 @@ export async function refreshTrackedKeywords(
 
     if (!result) {
       errors += 1;
-      recordSnapshot(userId, business.id, keyword, {
+      await recordSnapshot(userId, business.id, keyword, {
         checkedAt: new Date().toISOString(),
         position: null,
         resultsCount: 0,
@@ -240,7 +240,7 @@ export async function refreshTrackedKeywords(
     const previousHistory = previousByKeyword.get(keyword.toLowerCase())?.history || [];
     const previousPosition = lastRealPosition(previousHistory);
 
-    recordSnapshot(userId, business.id, keyword, {
+    await recordSnapshot(userId, business.id, keyword, {
       checkedAt: new Date().toISOString(),
       position: Math.round(result.position * 10) / 10,
       resultsCount: result.impressions,

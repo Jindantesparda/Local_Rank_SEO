@@ -1,15 +1,16 @@
-import { docDeleteByUser, docDelete, docGet, docPut, tx } from './db';
+import { docDelete, docDeleteByUser, docGet, docPut, tx } from './db';
 
 /**
  * Tracked keywords and their recorded positions.
  *
- * Positions are only ever real results returned by the search API. If a check
- * cannot run (no credentials, quota gone, site not found in the top results)
- * that is recorded as `position: null` with a reason — never silently treated
- * as a drop.
+ * Positions are only ever real figures from the data source. If a check cannot
+ * run (no credentials, no impressions for the query, quota gone) that is
+ * recorded with a reason — never silently treated as a drop.
  *
- * Every mutation runs inside a transaction, so a keyword refresh that awaits a
- * network call between reading and writing cannot lose a concurrent update.
+ * Mutations run inside a transaction, and transaction callbacks await because
+ * the storage layer is asynchronous now that the database is hosted.
+ * Transactions are ambient: a nested call joins the outer transaction rather
+ * than opening a second one, which libSQL does not allow.
  */
 
 const NS = 'rankings' as const;
@@ -51,7 +52,7 @@ export interface RankingRecord {
   updatedAt: string;
 }
 
-/** Max tracked keywords per business — keeps the daily query count sane. */
+/** Max tracked keywords per business — keeps the query count sane. */
 export const MAX_TRACKED_KEYWORDS = 5;
 
 function key(userId: string, businessId: string): string {
@@ -62,22 +63,27 @@ export function normaliseKeyword(keyword: string): string {
   return keyword.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-export function getRankingRecord(userId: string, businessId: string): RankingRecord {
-  return docGet<RankingRecord>(NS, key(userId, businessId)) || { keywords: [], updatedAt: '' };
+export async function getRankingRecord(
+  userId: string,
+  businessId: string
+): Promise<RankingRecord> {
+  return (
+    (await docGet<RankingRecord>(NS, key(userId, businessId))) || { keywords: [], updatedAt: '' }
+  );
 }
 
-function save(userId: string, businessId: string, record: RankingRecord) {
+async function save(userId: string, businessId: string, record: RankingRecord): Promise<void> {
   record.updatedAt = new Date().toISOString();
-  docPut(NS, key(userId, businessId), userId, record);
+  await docPut(NS, key(userId, businessId), userId, record);
 }
 
-export function trackKeyword(
+export async function trackKeyword(
   userId: string,
   businessId: string,
   keyword: string
-): { ok: boolean; error?: string } {
-  return tx(() => {
-    const record = getRankingRecord(userId, businessId);
+): Promise<{ ok: boolean; error?: string }> {
+  return await tx(async () => {
+    const record = await getRankingRecord(userId, businessId);
     const clean = keyword.trim().replace(/\s+/g, ' ');
 
     if (!clean) return { ok: false, error: 'Keyword cannot be empty.' };
@@ -95,34 +101,38 @@ export function trackKeyword(
     }
 
     record.keywords.push({ keyword: clean, createdAt: new Date().toISOString(), history: [] });
-    save(userId, businessId, record);
+    await save(userId, businessId, record);
     return { ok: true };
   });
 }
 
-export function untrackKeyword(userId: string, businessId: string, keyword: string): boolean {
-  return tx(() => {
-    const record = getRankingRecord(userId, businessId);
+export async function untrackKeyword(
+  userId: string,
+  businessId: string,
+  keyword: string
+): Promise<boolean> {
+  return await tx(async () => {
+    const record = await getRankingRecord(userId, businessId);
     const before = record.keywords.length;
     record.keywords = record.keywords.filter(
       (kw) => normaliseKeyword(kw.keyword) !== normaliseKeyword(keyword)
     );
     if (record.keywords.length === before) return false;
 
-    save(userId, businessId, record);
+    await save(userId, businessId, record);
     return true;
   });
 }
 
 /** Append a snapshot to a keyword's history, trimming the oldest entries. */
-export function recordSnapshot(
+export async function recordSnapshot(
   userId: string,
   businessId: string,
   keyword: string,
   snapshot: RankSnapshot
-) {
-  tx(() => {
-    const record = getRankingRecord(userId, businessId);
+): Promise<void> {
+  await tx(async () => {
+    const record = await getRankingRecord(userId, businessId);
     const target = record.keywords.find(
       (kw) => normaliseKeyword(kw.keyword) === normaliseKeyword(keyword)
     );
@@ -130,14 +140,14 @@ export function recordSnapshot(
 
     target.history = [...target.history, snapshot].slice(-MAX_HISTORY);
     target.lastCheckedAt = snapshot.checkedAt;
-    save(userId, businessId, record);
+    await save(userId, businessId, record);
   });
 }
 
-export function removeRankingData(userId: string) {
-  docDeleteByUser(userId);
+export async function removeRankingData(userId: string): Promise<void> {
+  await docDeleteByUser(userId);
 }
 
-export function removeKeywordRecord(userId: string, businessId: string) {
-  docDelete(NS, key(userId, businessId));
+export async function removeKeywordRecord(userId: string, businessId: string): Promise<boolean> {
+  return await docDelete(NS, key(userId, businessId));
 }
