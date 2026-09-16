@@ -12,6 +12,7 @@ import {
 import { appBaseUrl, sendEmail, scoreDropEmail, rankDropEmail } from './email';
 import { refreshTrackedKeywords } from './rankTracker';
 import { getConnection } from './searchConsoleStore';
+import { reconcilePendingPayments } from './paymentReconcile';
 import { isSearchConsoleConfigured } from './searchConsole';
 
 /**
@@ -110,6 +111,26 @@ export interface MonitoringResult {
  * considered (used by the manual "check now" endpoint).
  */
 export async function runMonitoringPass(onlyUserId?: string): Promise<MonitoringResult[]> {
+  /*
+    Settle any payment the webhook never confirmed.
+
+    Deliberately before the monitoringEnabled() guard: whether a plan is settled
+    has nothing to do with whether site monitoring is turned on, and a blocked
+    webhook means a customer has paid for nothing. Running it here means the
+    hourly cron also repairs payments, so a blocked webhook becomes a delay
+    rather than a lost sale.
+
+    Never allowed to break monitoring: a gateway outage must not stop re-audits.
+  */
+  try {
+    await reconcilePendingPayments();
+  } catch (err) {
+    console.warn(
+      '[monitor] payment reconciliation skipped:',
+      err instanceof Error ? err.message : err
+    );
+  }
+
   const results: MonitoringResult[] = [];
   if (!monitoringEnabled()) return results;
 

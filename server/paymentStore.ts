@@ -176,6 +176,25 @@ export async function getUserPayments(userId: string): Promise<Payment[]> {
   return rows.map(toPayment);
 }
 
+/**
+ * Payments still awaiting confirmation, older than `minAgeMinutes`.
+ *
+ * Used by the reconciliation sweep: if a gateway webhook is blocked or lost,
+ * the payment sits in 'pending' forever and the customer has paid for nothing.
+ * Polling the gateway directly closes that hole.
+ */
+export async function listPendingPayments(minAgeMinutes = 10, limit = 50): Promise<Payment[]> {
+  const cutoff = new Date(Date.now() - minAgeMinutes * 60 * 1000).toISOString();
+  const rows = await query<PaymentRow>(
+    `SELECT * FROM payments
+      WHERE status = 'pending' AND created_at <= ?
+      ORDER BY created_at
+      LIMIT ?`,
+    [cutoff, limit]
+  );
+  return rows.map(toPayment);
+}
+
 export async function updatePaymentStatus(
   paymentId: string,
   status: PaymentStatus,

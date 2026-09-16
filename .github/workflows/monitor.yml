@@ -1,27 +1,33 @@
 name: Monitoring
 
 # Render's free tier sleeps a service after ~15 minutes without traffic, which
-# stops the in-process monitoring scheduler. This workflow wakes it up and runs
-# a monitoring pass, so scheduled re-audits and rank-drop alerts still happen.
+# stops the in-process monitoring scheduler. This workflow wakes the service and
+# runs a monitoring pass, so scheduled re-audits, rank-drop alerts and payment
+# reconciliation still happen.
 #
-# It has a second benefit: the service is warm, so a real visitor does not hit a
-# ~50 second cold start.
+# It has a second benefit: keeping the service warm means a real visitor does not
+# hit a ~50 second cold start.
 #
-# Setup (one time):
-#   1. Sign in to Search Vailable and copy your session token from the browser's
-#      localStorage under the key `searchvailable_token`.
-#   2. Add it to this repository as an Actions secret named MONITOR_TOKEN.
-#      Settings → Secrets and variables → Actions → New repository secret.
-#   3. Add a repository variable APP_URL if your domain is not the default below.
+# Setup (one time), both sides must match:
 #
-# Note: the token expires after SESSION_TTL_DAYS (30 by default). When it does,
-# this job starts returning 401 and the log line tells you to replace the secret.
-# A dedicated long-lived service token is not built yet.
+#   1. On the server, set an environment variable. Generate a value with:
+#        node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+#      then add MONITOR_TOKEN=<that value> in Render.
+#
+#   2. In this repository, add the SAME value as an Actions secret named
+#      MONITOR_TOKEN:
+#        Settings → Secrets and variables → Actions → New repository secret
+#
+#   3. If your domain is not the default below, add a repository variable APP_URL.
+#
+# Unlike a session token, this one does not expire — the previous version used a
+# token copied from the browser, which stopped working after SESSION_TTL_DAYS
+# (30 days) and made scheduled monitoring fail silently.
 
 on:
   schedule:
     # Hourly. GitHub sometimes delays scheduled runs under load, which is fine —
-    # a monitoring pass that runs every couple of hours is still useful.
+    # a pass every couple of hours is still useful.
     - cron: '0 * * * *'
   workflow_dispatch:
 
@@ -41,27 +47,36 @@ jobs:
           set -euo pipefail
 
           if [ -z "${MONITOR_TOKEN}" ]; then
-            echo "MONITOR_TOKEN secret is not set — skipping."
-            echo "Add it under Settings → Secrets and variables → Actions."
-            exit 0
+            echo "::error::MONITOR_TOKEN secret is not set. Add it under Settings → Secrets and variables → Actions, using the same value as the server's MONITOR_TOKEN."
+            exit 1
           fi
 
           echo "Waking ${APP_URL} (free tier services sleep)…"
           # A cold start can take up to a minute, so allow for it.
+          code=""
           for i in $(seq 1 12); do
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "${APP_URL}/api/health" || true)
             echo "  attempt ${i}: health returned ${code}"
             if [ "${code}" = "200" ]; then break; fi
             sleep 5
           done
-          if [ "${code:-}" != "200" ]; then
+          if [ "${code}" != "200" ]; then
             echo "::error::${APP_URL}/api/health never returned 200. The service may be down."
+            exit 1
+          fi
+
+          # Fail early with a precise message if the server has no token set,
+          # rather than reporting a confusing 401.
+          config=$(curl -s --max-time 30 "${APP_URL}/api/monitor/service-token" || echo '{}')
+          echo "  server service-token status: ${config}"
+          if echo "${config}" | grep -q '"configured":false'; then
+            echo "::error::The server has no MONITOR_TOKEN set (or it is shorter than 24 characters). Add it in Render, then re-run."
             exit 1
           fi
 
           echo "Running the monitoring pass…"
           body=$(mktemp)
-          status=$(curl -s -o "${body}" -w '%{http_code}' --max-time 120 \
+          status=$(curl -s -o "${body}" -w '%{http_code}' --max-time 180 \
             -X POST "${APP_URL}/api/monitor/run" \
             -H "Authorization: Bearer ${MONITOR_TOKEN}" \
             -H 'Content-Type: application/json' || true)
@@ -73,8 +88,8 @@ jobs:
             200)
               echo "Monitoring pass completed."
               ;;
-            401|403)
-              echo "::error::The MONITOR_TOKEN was rejected (HTTP ${status}). It has probably expired after SESSION_TTL_DAYS — sign in again, copy the new token from localStorage, and update the secret."
+            401)
+              echo "::error::The MONITOR_TOKEN was rejected (HTTP 401). The secret here and the value in Render must be identical."
               exit 1
               ;;
             *)

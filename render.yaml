@@ -58,6 +58,14 @@ services:
       - key: PAYMENT_MODE
         value: sandbox
 
+      # Token for the monitoring cron (.github/workflows/monitor.yml), so
+      # scheduled monitoring does not depend on a session that expires every 30
+      # days. Generate one with:
+      #   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      # and set the same value as the MONITOR_TOKEN GitHub Actions secret.
+      - key: MONITOR_TOKEN
+        sync: false
+
       # How many proxies sit in front of the app. This feeds req.ip, which the
       # auth rate limiter is keyed on:
       #   1  Render direct, or Cloudflare with the record set to "DNS only"

@@ -106,6 +106,35 @@ function isPaidStatus(status: string | undefined): boolean {
 }
 
 /**
+ * Statuses that mean the transaction is over and did not succeed.
+ *
+ * The live poll path previously only looked for the substring "error", so
+ * "Cancelled" and "Declined" fell through to "still pending". An abandoned
+ * payment therefore stayed pending forever, and the reconciliation sweep would
+ * keep polling it indefinitely.
+ */
+const FAILED_STATUSES = [
+  'failed',
+  'failure',
+  'cancelled',
+  'canceled',
+  'declined',
+  'error',
+  'abandoned',
+  'expired',
+  'disputed',
+  'reversed',
+];
+
+function isFailedStatus(status: string | undefined): boolean {
+  if (!status) return false;
+  const s = status.toLowerCase().trim();
+  if (FAILED_STATUSES.includes(s)) return true;
+  // Paynow sometimes prefixes, e.g. "Error: invalid merchant".
+  return s.includes('error') || s.includes('cancel') || s.includes('declin');
+}
+
+/**
  * Paynow gateway implementation.
  */
 export class PaynowGateway {
@@ -219,20 +248,9 @@ export class PaynowGateway {
       // never activate a subscription.
       const raw = (payload.status || '').toLowerCase().trim();
       const successStatuses = ['success', 'paid', 'delivered', 'awaiting delivery'];
-      const failedStatuses = [
-        'failed',
-        'failure',
-        'cancelled',
-        'canceled',
-        'declined',
-        'error',
-        'abandoned',
-        'expired',
-      ];
-
       const status = successStatuses.includes(raw)
         ? 'success'
-        : failedStatuses.includes(raw)
+        : isFailedStatus(raw)
           ? 'failed'
           : 'pending';
 
@@ -271,7 +289,7 @@ export class PaynowGateway {
           providerTransactionId: poll.paynowreference,
         };
       }
-      if ((poll.status || '').toLowerCase().includes('error')) {
+      if (isFailedStatus(poll.status)) {
         return { valid: true, status: 'failed' };
       }
       // Still pending with the gateway.

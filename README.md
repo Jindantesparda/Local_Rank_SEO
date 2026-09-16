@@ -889,6 +889,78 @@ that returned early — checking a single plan would have missed it entirely.
 
 ---
 
+## Keeping scheduled work running (free-tier hosts sleep)
+
+Render's free tier sleeps a service after ~15 minutes without traffic. That stops the in-process
+scheduler, which would quietly break three things that customers pay for: automated re-audits,
+rank-drop alerts, and payment reconciliation.
+
+`.github/workflows/monitor.yml` wakes the service hourly and calls `POST /api/monitor/run`.
+
+### The service token
+
+The cron authenticates with `MONITOR_TOKEN` — a long-lived value in an environment variable, **not** a
+session token. An earlier version used a token copied out of the browser, which stopped working after
+`SESSION_TTL_DAYS` (30 days) and made monitoring fail silently. A session is the wrong credential for
+a machine caller.
+
+```bash
+# generate one
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Set the **same value** in two places:
+
+1. On the server as `MONITOR_TOKEN` (Render → Environment)
+2. In the repo as an Actions secret named `MONITOR_TOKEN`
+
+It must be at least 24 characters; shorter values are ignored rather than accepted. `GET
+/api/monitor/service-token` reports whether the server has one configured, which is how the workflow
+tells "the token is wrong" apart from "nothing was due".
+
+### Payments are reconciled, not just webhooked
+
+The webhook is the fast path, but it is no longer the only one. If it is ever blocked, missed, or
+lost to a restart, the payment would previously sit `pending` forever while the customer had already
+paid — with no error shown to anyone.
+
+Every monitoring pass first sweeps payments still awaiting confirmation and asks the gateway directly
+(`server/paymentReconcile.ts`):
+
+- the decision comes from the gateway, never from a request body
+- payments already `paid` are skipped, so a subscription cannot be activated twice
+- payments younger than 10 minutes are left alone, so an in-flight webhook is not raced
+
+A blocked webhook therefore becomes a delay of up to an hour, not a lost sale.
+
+---
+
+## Cloudflare: exempt the payment webhook from bot protection
+
+**Do this before going live with Paynow.** If you enable Bot Fight Mode or a managed WAF ruleset, add
+a skip rule for:
+
+```
+/api/billing/webhook
+```
+
+The webhook is a server-to-server POST from Paynow with no browser fingerprint — exactly what bot
+protection challenges. If it is blocked, **customers appear to pay successfully but the subscription
+never activates**, and it fails silently because the webhook is the only thing that activates
+anything.
+
+Two things soften that now: the reconciliation sweep above recovers the payment within the hour, and
+the workflow's health check surfaces a failing service. But fix the rule anyway — recovery should be
+the safety net, not the mechanism.
+
+Also worth exempting if you drive scheduled work from an external service:
+
+```
+/api/monitor/run
+```
+
+---
+
 ## Hosting on Render free + Turso
 
 The free way to run this, with data that survives restarts.
