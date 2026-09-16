@@ -14,7 +14,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "smoke:browser": "node scripts/browser-smoke.cjs"
+    "smoke:browser": "node scripts/browser-smoke.cjs",
+    "check:domain": "node scripts/check-domain.cjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

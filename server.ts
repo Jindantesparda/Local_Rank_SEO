@@ -13,6 +13,7 @@ import { createAnalyticsRouter } from './server/analyticsRouter';
 import { createRankRouter } from './server/rankRouter';
 import { getDb, dbHealth, databasePath } from './server/db';
 import { importLegacyData } from './server/legacyImport';
+import { clientKey, parseTrustProxy } from './server/proxy';
 import { startMonitoring } from './server/monitor';
 import { AuditResult, Business } from './src/types';
 import { createBillingRouter } from './server/billing';
@@ -30,7 +31,7 @@ function createAuthRateLimiter() {
 
   return (req: Request, res: Response, next: NextFunction) => {
     const now = Date.now();
-    const key = req.ip || 'unknown';
+    const key = clientKey(req.ip);
     const entry = hits.get(key);
 
     if (!entry || entry.resetAt < now) {
@@ -76,9 +77,22 @@ async function startServer() {
   // Hosts such as Render/Railway/Fly set PORT. Fall back to 3000 locally.
   const PORT = Number(process.env.PORT) || 3000;
 
-  // Behind a host proxy (Render, Fly, Railway, nginx). Needed so req.ip and
-  // req.secure reflect the real client rather than the proxy.
-  app.set('trust proxy', 1);
+  /*
+    Proxy hops. Express needs to know how many proxies to skip when reading
+    X-Forwarded-For, because req.ip feeds the auth rate limiter.
+
+    The default of 1 suits a single host proxy (Render, Railway, Fly, nginx).
+    Behind Cloudflare in front of Render there are TWO, and leaving this at 1
+    makes req.ip resolve to the Cloudflare edge — so every visitor shares one
+    rate-limit bucket and 30 failed logins lock out the whole app. Set
+    TRUST_PROXY=2 for that setup.
+  */
+  const proxy = parseTrustProxy(process.env.TRUST_PROXY);
+  app.set('trust proxy', proxy.value);
+  if (proxy.warning) {
+    console.warn(`[proxy] ${proxy.warning}`);
+  }
+  console.log(`[proxy] trust proxy = ${JSON.stringify(proxy.value)} (${proxy.description})`);
 
   // Minimal security headers — no extra dependency required.
   app.use((_req, res, next) => {
@@ -101,6 +115,14 @@ async function startServer() {
       status: db.ok ? 'ok' : 'degraded',
       time: new Date().toISOString(),
       uptimeSeconds: Math.round(process.uptime()),
+      /**
+       * The caller's own resolved IP, for verifying the proxy configuration
+       * after deployment: if this shows a Cloudflare address rather than your
+       * own, TRUST_PROXY is too low. It is the requester's own address, so
+       * nothing is leaked to anyone else.
+       */
+      resolvedClientIp: req.ip,
+      trustProxy: parseTrustProxy(process.env.TRUST_PROXY).value,
       database: {
         ok: db.ok,
         schemaVersion: db.schemaVersion,

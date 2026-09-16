@@ -889,6 +889,95 @@ that returned early — checking a single plan would have missed it entirely.
 
 ---
 
+## Custom domain (Cloudflare → Render)
+
+A worked example using `searchvailable.com`, registered through Cloudflare and served by Render.
+The same shape applies to any registrar plus any Node host.
+
+> **Cloudflare Registrar requirement:** you must use Cloudflare's nameservers. You can point records
+> at any host, but you cannot move the nameservers elsewhere without transferring the domain out.
+
+### 1. Point the domain at the host
+
+In Cloudflare → DNS, for both the apex and `www`:
+
+| Type | Name | Content | Proxy status |
+|------|------|---------|--------------|
+| CNAME | `@` | `your-service.onrender.com` | Proxied (orange) |
+| CNAME | `www` | `your-service.onrender.com` | Proxied (orange) |
+
+Add the same hostname in Render under **Settings → Custom Domains**.
+
+### 2. SSL/TLS mode must be Full or Full (strict)
+
+Set **SSL/TLS → Overview → Full (strict)**.
+
+**Do not use Flexible.** Render forces HTTPS on the origin, so Flexible makes Cloudflare speak plain
+HTTP to it and you get an infinite redirect loop. This is the single most common setup failure.
+
+### 3. Set the environment variables
+
+```bash
+APP_URL="https://searchvailable.com"
+PAYMENT_CALLBACK_URL="https://searchvailable.com/api/billing"
+TRUST_PROXY=2
+```
+
+- **`APP_URL`** — without it every verification and password-reset email links to
+  `http://localhost:3000` and is dead on arrival.
+- **`PAYMENT_CALLBACK_URL`** — the URL Paynow calls back to.
+- **`TRUST_PROXY=2`** — see below. This one matters more than it looks.
+
+### 4. `TRUST_PROXY` — read this one
+
+`req.ip` feeds the auth rate limiter (30 attempts per 15 minutes). The correct `trust proxy` value is
+the number of proxies actually in front of the app:
+
+| Topology | Value |
+|----------|-------|
+| Render/Railway/Fly direct, or Cloudflare with the record set to **DNS only** | `1` (default) |
+| **Cloudflare proxied in front of Render** | `2` |
+
+Get this wrong and the resolved IP becomes the **Cloudflare edge address**, so every visitor shares a
+single rate-limit bucket — and **30 failed logins from anyone, anywhere, locks out all logins** for
+15 minutes.
+
+Verify it after deploying:
+
+```bash
+curl https://searchvailable.com/api/health
+```
+
+`resolvedClientIp` must show **your own** address. If it shows a Cloudflare address
+(`172.64–172.71.x`, `104.16–104.31.x`), raise `TRUST_PROXY` by one. The endpoint reports the
+requester's own IP, so nothing is exposed to anyone else.
+
+### 5. Exempt the payment webhook from bot protection
+
+If you enable **Bot Fight Mode** or a managed WAF rule set, add a skip/exemption rule for:
+
+```
+/api/billing/webhook
+```
+
+The webhook is a server-to-server POST from Paynow with no browser fingerprint — exactly what bot
+protection challenges. If it is blocked, **customers appear to pay successfully but the subscription
+never activates**, and it fails silently, because the webhook is the only thing that activates
+anything. Verified by the fact that order confirmation and activation are deliberately separate.
+
+`/api/monitor/run` is worth exempting too if you drive scheduled checks from an external cron.
+
+### 6. Then the domain unlocks
+
+- **Real email.** Verify the domain in Resend (add the SPF/DKIM records Cloudflare gives you) and set
+  `EMAIL_FROM="Search Vailable <hello@searchvailable.com>"`. The shared `onboarding@resend.dev`
+  sender only delivers to your own address.
+- **Paynow live mode.** Set the live Integration ID/Key and `PAYMENT_MODE=live`.
+- **Search Console.** Use the domain property `sc-domain:searchvailable.com`, which covers the apex
+  and every subdomain.
+
+---
+
 ## Common issues
 
 **`POST /api/audit` returns 404 (e.g. on a Vercel URL)**

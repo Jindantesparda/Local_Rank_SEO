@@ -235,3 +235,50 @@ describe('Brave search provider', () => {
     assert.match(serp.message || '', /not Google/i);
   });
 });
+
+/* --------------------------- proxy / client IP ------------------------- */
+
+describe('proxy resolution (rate-limit keying)', () => {
+  test('defaults to one hop, which suits a single host proxy', async () => {
+    const { parseTrustProxy } = await import('../server/proxy');
+    assert.equal(parseTrustProxy(undefined).value, 1);
+    assert.equal(parseTrustProxy('').value, 1);
+    assert.equal(parseTrustProxy('   ').value, 1);
+  });
+
+  test('accepts an explicit hop count, including the Cloudflare case', async () => {
+    const { parseTrustProxy } = await import('../server/proxy');
+    assert.equal(parseTrustProxy('1').value, 1);
+    assert.equal(parseTrustProxy('2').value, 2, 'Cloudflare in front of Render is two hops');
+    assert.equal(parseTrustProxy('3').value, 3);
+    assert.equal(parseTrustProxy('0').value, 0);
+  });
+
+  test('accepts an IP/CIDR list', async () => {
+    const { parseTrustProxy } = await import('../server/proxy');
+    assert.equal(parseTrustProxy('loopback').value, 'loopback');
+    assert.equal(parseTrustProxy('10.0.0.0/8,172.16.0.0/12').value, '10.0.0.0/8,172.16.0.0/12');
+  });
+
+  test('warns that trusting every proxy is spoofable', async () => {
+    const { parseTrustProxy } = await import('../server/proxy');
+    const result = parseTrustProxy('true');
+    assert.equal(result.value, true);
+    assert.match(result.warning || '', /spoof/i);
+  });
+
+  test('nonsense falls back to the safe default and says so', async () => {
+    const { parseTrustProxy } = await import('../server/proxy');
+    const result = parseTrustProxy('99');
+    assert.equal(result.value, 1);
+    assert.match(result.warning || '', /TRUST_PROXY/);
+
+    assert.equal(parseTrustProxy('nonsense-value!').value, 'nonsense-value!');
+  });
+
+  test('a missing IP still produces a stable bucket key', async () => {
+    const { clientKey } = await import('../server/proxy');
+    assert.equal(clientKey(undefined), 'unknown');
+    assert.equal(clientKey('203.0.113.9'), '203.0.113.9');
+  });
+});

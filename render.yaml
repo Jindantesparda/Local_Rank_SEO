@@ -3,6 +3,11 @@
 # This runs the full Express server (crawler + auth + billing + static frontend)
 # on one URL, so the frontend's relative /api/... calls work.
 #
+# Why not Vercel: this app needs a long-lived process (the monitoring scheduler),
+# a persistent writable filesystem (SQLite on a disk), and multi-page crawls that
+# can take 10+ seconds. Serverless has none of those — the data directory is
+# ephemeral, so accounts and payments would vanish on every cold start.
+#
 # Notes:
 # - Requires Node 24: storage is SQLite via the built-in node:sqlite module.
 # - The disk below makes user/payment data survive restarts and deploys.
@@ -18,6 +23,13 @@ services:
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
+    # Custom domain, provisioned by the blueprint. Render will ask you to add
+    # these DNS records in Cloudflare:
+    #   CNAME  @    →  <service>.onrender.com
+    #   CNAME  www  →  <service>.onrender.com
+    domains:
+      - searchvailable.com
+      - www.searchvailable.com
     envVars:
       - key: NODE_VERSION
         value: "24"
@@ -25,19 +37,46 @@ services:
         value: production
       - key: DATA_DIR
         value: /opt/render/project/src/data
+
+      # Public URL of this service. Without it every verification and
+      # password-reset email links to http://localhost:3000 and is dead on
+      # arrival. Keep this in step with the custom domain above.
+      - key: APP_URL
+        value: https://searchvailable.com
+      - key: PAYMENT_CALLBACK_URL
+        value: https://searchvailable.com/api/billing
+
       - key: PAYMENT_MODE
         value: sandbox
-      - key: APP_URL
+
+      # How many proxies sit in front of the app. This feeds req.ip, which the
+      # auth rate limiter is keyed on:
+      #   1  Render direct, or Cloudflare with the record set to "DNS only"
+      #   2  Cloudflare proxied (orange cloud) in front of Render
+      # Get it wrong and every visitor shares one bucket, so 30 failed logins
+      # lock out the whole app. Verify with: curl <domain>/api/health
+      - key: TRUST_PROXY
+        value: "1"
+
+      # --- Optional integrations. Leave unset and the app degrades honestly. ---
+      # Google service account (JSON) — powers Analytics and Search Console.
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
         sync: false
+      # Brave Search — competitor search visibility (not Google results).
+      - key: BRAVE_SEARCH_API_KEY
+        sync: false
+      # Resend — confirmation, password reset and monitoring emails.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      # Gemini — AI-written wording. New keys need gemini-3.6-flash.
+      - key: GEMINI_API_KEY
+        sync: false
+      # Paynow — live payments (PAYMENT_MODE=live).
       - key: PAYNOW_INTEGRATION_ID
         sync: false
       - key: PAYNOW_INTEGRATION_KEY
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: GOOGLE_SEARCH_API_KEY
-        sync: false
-      - key: GOOGLE_SEARCH_ENGINE_ID
         sync: false
     disk:
       name: search-vailable-data
