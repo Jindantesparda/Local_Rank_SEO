@@ -31,6 +31,34 @@ function fail(label, detail, fix) {
   results.push({ pass: false, label, detail, fix });
 }
 
+/**
+ * Addresses that mean "this is not the visitor".
+ *
+ * Cloudflare ranges are the obvious case, but a private address is just as
+ * wrong and much easier to miss: a host's own network adds an internal hop, so
+ * with too low a TRUST_PROXY the resolved IP comes back as something like
+ * 10.x.x.x. The auth rate limiter is keyed on that value, which means every
+ * visitor ends up sharing a single bucket.
+ */
+function looksSharedOrPrivate(ip) {
+  if (!ip || typeof ip !== 'string') return false;
+
+  // IPv6 loopback / link-local / IPv4-mapped
+  if (ip === '::1' || /^fe80:/i.test(ip) || /^::ffff:/i.test(ip)) return true;
+
+  const m = ip.match(/^(\d+)\.(\d+)\./);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+
+  if (a === 10) return true; // RFC1918
+  if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
+  if (a === 192 && b === 168) return true; // RFC1918
+  if (a === 127 || a === 169 || a === 0) return true; // loopback, link-local, "this network"
+  if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
+
+  return false;
+}
+
 /** An address that looks like a Cloudflare edge, i.e. wrong for rate limiting. */
 function looksLikeCloudflare(ip) {
   if (!ip || typeof ip !== 'string') return false;
@@ -144,14 +172,25 @@ function fetchHealth(url, timeoutMs = 12000) {
 
         /* ------------------------ the proxy check ------------------------ */
         const ip = parsed.resolvedClientIp;
+        const chain = parsed.forwardedFor;
+        if (chain) {
+          // Printed always: it is the raw material for choosing TRUST_PROXY.
+          results.push({ pass: null, label: 'X-Forwarded-For', detail: chain });
+        }
+
         if (!ip) {
           fail('Proxy / rate limiting', 'health did not report resolvedClientIp', 'Update to the current server build.');
-        } else if (looksLikeCloudflare(ip)) {
+        } else if (looksSharedOrPrivate(ip) || looksLikeCloudflare(ip)) {
+          const kind = looksSharedOrPrivate(ip)
+            ? 'a private/internal address'
+            : 'a Cloudflare address';
           fail(
             'Proxy / rate limiting',
-            `resolvedClientIp is ${ip} — a Cloudflare address, not yours`,
-            `Set TRUST_PROXY=${Number(EXPECTED_TRUST_PROXY) + 1} on the host and restart. Until then every ` +
-              `visitor shares one rate-limit bucket, so 30 failed logins lock out the whole app.`
+            `${ip} is ${kind}, not the visitor — and that is what the auth rate limiter is keyed on, ` +
+              `so every visitor shares one bucket (30 failed logins then lock out the whole app)`,
+            `Raise TRUST_PROXY to ${Number(parsed.trustProxy || 1) + 1} on the host and redeploy, then run this ` +
+              `again. Use the X-Forwarded-For line above to pick the value: TRUST_PROXY is the number of ` +
+              `proxies in front of the app, and the correct setting makes this check show YOUR public IP.`
           );
         } else {
           ok(

@@ -146,12 +146,20 @@ async function startServer() {
       uptimeSeconds: Math.round(process.uptime()),
       /**
        * The caller's own resolved IP, for verifying the proxy configuration
-       * after deployment: if this shows a Cloudflare address rather than your
-       * own, TRUST_PROXY is too low. It is the requester's own address, so
-       * nothing is leaked to anyone else.
+       * after deployment: if this shows a Cloudflare or private address rather
+       * than your own, TRUST_PROXY is too low. It is the requester's own
+       * address, so nothing is leaked to anyone else.
        */
       resolvedClientIp: req.ip,
       trustProxy: parseTrustProxy(process.env.TRUST_PROXY).value,
+      /**
+       * The raw forwarding chain, so the right TRUST_PROXY can be read off
+       * rather than guessed: it is the number of proxies in front of the app,
+       * and the correct value makes resolvedClientIp above your public address.
+       * Only the requester sees their own chain.
+       */
+      forwardedFor: (req.headers['x-forwarded-for'] as string) || null,
+      forwardedChain: req.ips,
       database: {
         ok: db.ok,
         schemaVersion: db.schemaVersion,
