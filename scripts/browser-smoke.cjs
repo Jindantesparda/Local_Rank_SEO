@@ -150,6 +150,24 @@ const PROBE = [
         ws.send(JSON.stringify({ id, method, params: params || {} }));
       });
 
+    /*
+      Optional mobile emulation. Set SV_WIDTH (e.g. 390) to render at a phone
+      viewport with touch enabled, which is how layout problems actually show up
+      — a desktop-width window will happily hide an overflow.
+    */
+    const VIEWPORT_WIDTH = Number(process.env.SV_WIDTH || 0);
+    const VIEWPORT_HEIGHT = Number(process.env.SV_HEIGHT || 844);
+    if (VIEWPORT_WIDTH > 0) {
+      await call('Emulation.setDeviceMetricsOverride', {
+        width: VIEWPORT_WIDTH,
+        height: VIEWPORT_HEIGHT,
+        deviceScaleFactor: Number(process.env.SV_DPR || 2),
+        mobile: true,
+      });
+      await call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+      console.log('--- viewport: ' + VIEWPORT_WIDTH + 'x' + VIEWPORT_HEIGHT + ' (mobile) ---');
+    }
+
     const evaluate = async (expression) => {
       const r = await call('Runtime.evaluate', {
         expression,

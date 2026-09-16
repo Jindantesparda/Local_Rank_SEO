@@ -12,10 +12,22 @@ import {
   CreditCard,
   LogOut,
   Settings,
+  Menu,
+  X,
   Trophy
 } from 'lucide-react';
 import { AuditResult, User, Business, SubscriptionTier } from '../types';
 import { PLAN_CONFIGS } from '../config/plans';
+
+/**
+ * Landing-page anchor links. Defined once and rendered twice (the desktop bar
+ * and the mobile panel) so the two can never drift apart.
+ */
+const LANDING_LINKS = [
+  { href: '#product', label: 'Product' },
+  { href: '#how-it-works', label: 'How It Works' },
+  { href: '#pricing', label: 'Pricing' },
+];
 
 interface NavbarProps {
   currentAudit: AuditResult | null;
@@ -47,10 +59,24 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveView,
 }) => {
   const [bizDropdownOpen, setBizDropdownOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const bizDropdownRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  /*
+    The panel only makes sense while the bar is narrow. Without this it stays
+    open (overlaying the page) if the window is widened or the device is
+    rotated to landscape.
+  */
+  useEffect(() => {
+    function handleResize() {
+      if (window.innerWidth >= 1024) setMobileMenuOpen(false);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -73,7 +99,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 px-3 sm:px-6 pt-3 pb-1">
       <div className="max-w-[1520px] mx-auto h-16 px-4 sm:px-6 bg-white border border-slate-200 rounded-full shadow-sm flex items-center justify-between">
         {/* Left: Logo + Business Switcher Dropdown */}
-        <div className="flex items-center gap-4 sm:gap-6">
+        <div className="flex items-center gap-2 sm:gap-6 min-w-0">
           <button
             onClick={onGoHome}
             className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
@@ -86,33 +112,27 @@ export const Navbar: React.FC<NavbarProps> = ({
               height={36}
               className="w-9 h-9 shrink-0 object-contain group-hover:scale-105 transition"
             />
-            <div>
-              <span className="font-extrabold text-lg tracking-tight text-slate-800">Search Vailable</span>
-              <p className="text-[10px] text-slate-400 leading-none">Is your business searchable?</p>
+            {/* The wordmark hides below `sm`: at 360-390px it plus the
+                call-to-action buttons is wider than the pill, which is what
+                made the bar overflow. Shown again from `sm` up. */}
+            <div className="hidden sm:block min-w-0">
+              <span className="font-extrabold text-base sm:text-lg tracking-tight text-slate-800 block truncate">
+                Search Vailable
+              </span>
+              <p className="hidden md:block text-[10px] text-slate-400 leading-none truncate">
+                Is your business searchable?
+              </p>
             </div>
           </button>
 
           {/* Landing page links */}
           {!currentAudit && (
             <nav className="hidden lg:flex items-center gap-1 ml-2">
-              <a
-                href="#product"
-                className="btn btn-ghost btn-sm"
-              >
-                Product
-              </a>
-              <a
-                href="#how-it-works"
-                className="btn btn-ghost btn-sm"
-              >
-                How It Works
-              </a>
-              <a
-                href="#pricing"
-                className="btn btn-ghost btn-sm"
-              >
-                Pricing
-              </a>
+              {LANDING_LINKS.map((link) => (
+                <a key={link.href} href={link.href} className="btn btn-ghost btn-sm">
+                  {link.label}
+                </a>
+              ))}
             </nav>
           )}
 
@@ -307,15 +327,82 @@ export const Navbar: React.FC<NavbarProps> = ({
           ) : (
             <button
               onClick={onOpenAuth}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 px-3.5 py-1.5 rounded-full bg-white hover:bg-slate-50 border border-slate-200 shadow-2xs transition cursor-pointer"
+              /* Hidden on the narrowest screens: alongside "Analyze Website" it
+                 pushed the bar past the viewport at 320px. It is still one tap
+                 away in the mobile panel (btn-mobile-signin). */
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 px-3.5 py-1.5 rounded-full bg-white hover:bg-slate-50 border border-slate-200 shadow-2xs transition cursor-pointer"
               id="btn-nav-signin"
             >
               <UserIcon className="w-3.5 h-3.5 text-slate-400" />
               <span>Log In</span>
             </button>
           )}
+
+          {/* Mobile menu trigger. Below `lg` the inline links do not fit,
+              and before this they simply vanished with nothing to replace
+              them, so Product / How It Works / Pricing were unreachable
+              on a phone. */}
+          {!currentAudit && (
+            <button
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              className="btn-icon lg:hidden shrink-0"
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-nav-panel"
+              id="btn-mobile-menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          )}
         </div>
       </div>
+
+        {/* The same links as the desktop bar, rendered for narrow screens. */}
+        {!currentAudit && mobileMenuOpen && (
+          <div
+            className="lg:hidden max-w-[1520px] mx-auto mt-2 rounded-2xl bg-white border border-slate-200 shadow-lg overflow-hidden"
+            id="mobile-nav-panel"
+          >
+            <nav className="flex flex-col p-2">
+              {LANDING_LINKS.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </nav>
+            <div className="p-2 pt-0 flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAuditModal();
+                }}
+                className="btn btn-primary btn-md w-full"
+                id="btn-mobile-analyze"
+              >
+                <span>Analyze Website</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              {!currentUser && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenAuth();
+                  }}
+                  className="btn btn-outline btn-md w-full"
+                  id="btn-mobile-signin"
+                >
+                  <UserIcon className="w-4 h-4 text-slate-400" />
+                  <span>Log In</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
     </header>
   );
 };
